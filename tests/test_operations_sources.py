@@ -62,13 +62,14 @@ def test_manual_vacuum_checks_free_space_before_work(repo,monkeypatch):
 
 
 def test_per_fund_freshness_does_not_inherit_other_etf_failure(repo,ingest,stock):
-    ingest('2026-10-30',[stock])
+    today=date.today().isoformat()
+    ingest(today,[stock])
     record_status(repo,'fund','etf-069500','holdings','krx-etf','success','TEST verified')
     repo.execute("INSERT INTO data_fetch_runs(collector,started_at,status) VALUES('krx-etf','2026-10-31','partial')")
     record_status(repo,'fund','etf-102110','holdings','krx-etf','needs_configuration','TEST mapping')
     rows=decorate_entities(repo,repo.rows("SELECT * FROM funds WHERE id IN ('etf-069500','etf-102110')"),'fund')
     first=next(r for r in rows if r['id']=='etf-069500')
-    assert first['status']=='success' and first['latest_as_of_date']=='2026-10-30'
+    assert first['status']=='success' and first['latest_as_of_date']==today
     assert all(key in first for key in ('latest_published_at','latest_fetched_at','last_collector_success','last_collector_check','next_scheduled','data_source'))
 
 
