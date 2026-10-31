@@ -7,5 +7,7 @@ git fetch origin main
 git merge --ff-only origin/main
 .venv/bin/pip install -r requirements.txt
 sudo -u stock16 .venv/bin/python -m stock16 init
+sudo install -m 644 deploy/stock16-maintenance.service /etc/systemd/system/
+sudo systemctl daemon-reload
 sudo systemctl restart webapp-stock16-7.service
 echo 'Updated application; DB, raw data and .env preserved.'

@@ -1,6 +1,7 @@
 """Immutable snapshots, exact decimals and explicit identifier resolution."""
 import hashlib
 import json
+import re
 from datetime import date, datetime, timezone
 from decimal import Decimal, InvalidOperation
 
@@ -49,7 +50,7 @@ def resolve_security(c, row, namespace):
     for field,scheme in (('isin','ISIN'),('cusip','CUSIP'),('kr_code','KRX')):
         v=str(row.get(field) or '').strip().upper()
         if v:
-            if (field=='isin' and len(v)!=12) or (field=='cusip' and len(v)!=9) or (field=='kr_code' and (len(v)!=6 or not v.isdigit())):
+            if (field=='isin' and len(v)!=12) or (field=='cusip' and len(v)!=9) or (field=='kr_code' and not re.fullmatch(r'[0-9][0-9A-Z]{5}',v)):
                 raise ValueError('Invalid security identifier '+field)
             ids.append((scheme,v))
     if not ids:
@@ -82,6 +83,8 @@ def holding_map(c, set_hash):
 
 
 def compare(c, before, after):
+    before=dict(before) if before else None
+    after=dict(after)
     old=holding_map(c,before['set_hash']) if before else {}
     new=holding_map(c,after['set_hash'])
     result=[]
@@ -98,12 +101,16 @@ def compare(c, before, after):
             # Monetary changes across currencies are not comparable.
             delta[f]=None if f=='market_value' and a and b and a['currency']!=b['currency'] else difference(right,left)
         raw=delta['shares']
+        quantity_type=after.get('quantity_type','shares')
+        same_quantity_type=before.get('quantity_type','shares')==quantity_type
+        if not same_quantity_type:
+            delta['shares']=raw=None
         ratio=Decimal(1)
         if a and b:
             for r in c.execute('SELECT ratio FROM corporate_actions WHERE security_id=? AND effective_date>? AND effective_date<=?',
                                (key[0],before['as_of_date'],after['as_of_date'])):
                 ratio*=Decimal(r[0])
-            if ratio!=1 and a['shares'] is not None and b['shares'] is not None:
+            if ratio!=1 and same_quantity_type and a['shares'] is not None and b['shares'] is not None:
                 delta['shares']=number(Decimal(b['shares'])-Decimal(a['shares'])*ratio)
         pct=None
         if a and a['shares'] is not None and Decimal(a['shares']) and delta['shares'] is not None:
@@ -112,6 +119,8 @@ def compare(c, before, after):
             status='NEW' if before['disclosure_scope']=='full' else 'FIRST_DISCLOSED'
         elif b is None:
             status='EXITED' if after['disclosure_scope']=='full' else 'LEFT_DISCLOSED_LIST'
+        elif not same_quantity_type:
+            status='QUANTITY_SEMANTICS_CHANGED'
         elif delta['shares'] is None:
             status='UNCHANGED' if all(v in (None,'0') for v in delta.values()) else 'VALUE_OR_WEIGHT_CHANGED'
         else:
@@ -121,7 +130,31 @@ def compare(c, before, after):
         result.append(dict(security_id=key[0],position_key=key[1],status=status,
           shares_delta=delta['shares'],shares_delta_pct=pct,market_value_delta=delta['market_value'],
           portfolio_weight_delta_pp=delta['weight'],raw_shares_delta=raw,corporate_action=number(ratio) if ratio!=1 else None))
+        result[-1].update(quantity_delta=delta['shares'],quantity_delta_pct=pct,quantity_type=quantity_type)
     return result
+
+
+def write_changes(c, before, after):
+    if after is None:
+        return
+    c.execute('DELETE FROM holding_changes WHERE snapshot_id=?',(after['id'],))
+    for d in compare(c,before,after):
+        c.execute('INSERT INTO holding_changes VALUES(?,?,?,?,?,?,?,?,?,?,?)',
+          (after['id'],before['id'],d['security_id'],d['position_key'],d['status'],
+           d['shares_delta'],d['shares_delta_pct'],d['market_value_delta'],
+           d['portfolio_weight_delta_pp'],d['raw_shares_delta'],d['corporate_action']))
+
+
+def incremental_changes(c, fund, day, old_effective=None):
+    current=c.execute('SELECT * FROM effective_snapshots WHERE fund_id=? AND as_of_date=?',(fund,day)).fetchone()
+    if old_effective and old_effective['id']==current['id']:
+        return
+    if old_effective:
+        c.execute('DELETE FROM holding_changes WHERE snapshot_id=?',(old_effective['id'],))
+    previous=c.execute('SELECT * FROM effective_snapshots WHERE fund_id=? AND as_of_date<? ORDER BY as_of_date DESC LIMIT 1',(fund,day)).fetchone()
+    following=c.execute('SELECT * FROM effective_snapshots WHERE fund_id=? AND as_of_date>? ORDER BY as_of_date LIMIT 1',(fund,day)).fetchone()
+    write_changes(c,previous,current)
+    write_changes(c,current,following)
 
 
 def rebuild_changes(c, fund):
@@ -129,9 +162,7 @@ def rebuild_changes(c, fund):
     c.execute('DELETE FROM holding_changes WHERE snapshot_id IN (SELECT id FROM portfolio_snapshots WHERE fund_id=?)',(fund,))
     previous=None
     for row in c.execute('SELECT * FROM effective_snapshots WHERE fund_id=? ORDER BY as_of_date',(fund,)).fetchall():
-        for d in compare(c,previous,row):
-            c.execute('INSERT INTO holding_changes VALUES(?,?,?,?,?,?,?,?,?,?,?)',
-              (row['id'],previous['id'],d['security_id'],d['position_key'],d['status'],d['shares_delta'],d['shares_delta_pct'],d['market_value_delta'],d['portfolio_weight_delta_pp'],d['raw_shares_delta'],d['corporate_action']))
+        write_changes(c,previous,row)
         previous=row
 
 
@@ -150,6 +181,11 @@ def import_snapshot(repo,meta,rows,checksum):
         fund=c.execute('SELECT * FROM funds WHERE id=?',(meta['fund_id'],)).fetchone()
         if not fund:
             raise ValueError('Unknown fund')
+        old_effective=c.execute('SELECT * FROM effective_snapshots WHERE fund_id=? AND as_of_date=?',
+                                (fund['id'],meta['as_of_date'])).fetchone()
+        quantity_type=meta.get('quantity_type', 'pdf_per_cu_quantity' if fund['kind']=='ETF' else 'shares')
+        if quantity_type not in ('shares','pdf_per_cu_quantity','unavailable'):
+            raise ValueError('Unknown quantity semantics')
         values=[]
         value_ids=[]
         seen=set()
@@ -175,9 +211,9 @@ def import_snapshot(repo,meta,rows,checksum):
         if is_new:
             set_id=c.execute('SELECT id FROM holding_sets WHERE hash=?',(state,)).fetchone()[0]
             c.executemany('INSERT INTO holding_members VALUES(?,?)',[(set_id,i) for i in value_ids])
-        cur=c.execute('INSERT INTO portfolio_snapshots(fund_id,institution_id,as_of_date,published_at,fetched_at,source_url,source_type,checksum,currency,data_quality,disclosure_scope,set_hash) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)',
-          (fund['id'],fund['institution_id'],meta['as_of_date'],meta['published_at'],meta.get('fetched_at',now()),meta['source_url'],meta['source_type'],checksum,meta['currency'],meta.get('data_quality','Official'),meta['disclosure_scope'],state))
-        rebuild_changes(c,fund['id'])
+        cur=c.execute('INSERT INTO portfolio_snapshots(fund_id,institution_id,as_of_date,published_at,fetched_at,source_url,source_type,checksum,currency,data_quality,disclosure_scope,set_hash,quantity_type) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)',
+          (fund['id'],fund['institution_id'],meta['as_of_date'],meta['published_at'],meta.get('fetched_at',now()),meta['source_url'],meta['source_type'],checksum,meta['currency'],meta.get('data_quality','Official'),meta['disclosure_scope'],state,quantity_type))
+        incremental_changes(c,fund['id'],meta['as_of_date'],old_effective)
         return cur.lastrowid,True
 
 

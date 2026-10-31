@@ -31,7 +31,20 @@ class DatasetCollector:
         return table(body,item['format'],**options)
 
     def normalize(self,rows,item):
-        return mapped_rows(rows,item['mapping'],item.get('constants'))
+        from decimal import Decimal
+        from ..model import number
+        normalized=mapped_rows(rows,item['mapping'],item.get('constants'))
+        # Explicit reviewed units only, e.g. NPS KRW 100-million => 100000000.
+        for field,multiplier in item.get('multipliers',{}).items():
+            if field not in ('shares','market_value','weight','ownership_pct','target_weight'):
+                raise ValueError('Unsupported unit multiplier')
+            scale=Decimal(str(multiplier))
+            if not scale.is_finite() or scale<=0:
+                raise ValueError('Invalid unit multiplier')
+            for row in normalized:
+                value=number(row.get(field))
+                row[field]=number(Decimal(value)*scale) if value is not None else None
+        return normalized
 
     def validate(self,meta,rows):
         validate_meta(meta)

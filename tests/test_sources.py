@@ -100,3 +100,18 @@ def test_normalized_history_survives_raw_expiry(repo,ingest,stock):
     raw_retention(repo,date(2026,10,31),apply=True)
     assert Analytics(repo).holdings('etf-069500','2024-01-02')['rows'][0]['shares']=='100'
     assert Analytics(repo).changes('etf-069500')['rows'][0]['shares_delta']=='20'
+
+
+def test_gic_article_metadata_excludes_navigation_headings():
+    body=b'<meta property="article:published_time" content="2026-10-30"><meta property="og:title" content="TEST official announcement"><h1>Site navigation</h1><h1>TEST official announcement</h1><h1>Footer</h1>'
+    assert article(body)['title']=='TEST official announcement'
+
+
+def test_alphanumeric_krx_code_survives_pdf_and_identity_normalization(repo,ingest):
+    data={'pdf':{'gijunYMD':'20261030','totalCnt':1,'list':[
+      dict(itmNo='0008T0',secNm='TEST alphanumeric ETF',applyQ='12',evalA='1000',ratio='1')]}}
+    day,rows=parse_pdf(data)
+    ingest(day,rows)
+    result=Analytics(repo).holdings('etf-069500')
+    assert result['rows'][0]['kr_code']=='0008T0'
+    assert result['rows'][0]['quantity']=='12'

@@ -1,7 +1,8 @@
 {
   "nps": {
     "datasets": [],
-    "feeds": []
+    "feeds": [],
+    "discovery_rules": []
   },
   "nbim": {
     "datasets": [],
@@ -30,6 +31,13 @@
       "379800": "2ETFE4",
       "379810": "2ETFE3",
       "390390": "2ETFE8"
+    },
+    "providers": {
+      "tiger": {},
+      "rise": {},
+      "ace": {},
+      "sol": {},
+      "plus": {}
     }
   },
   "gic": {
@@ -38,6 +46,7 @@
   },
   "temasek": {
     "datasets": [],
-    "feeds": []
+    "feeds": [],
+    "discovery_rules": []
   }
 }

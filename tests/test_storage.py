@@ -28,7 +28,10 @@ def test_retention_calendar_leap_boundary(repo):
     assert months_before(date(2024,2,29),12)==date(2023,2,28)
 
 
-def test_backup_gfs_and_integrity(repo,ingest,stock,tmp_path):
+def test_backup_gfs_and_integrity(repo,ingest,stock,tmp_path,monkeypatch):
+    # Preserve and verify the original explicitly configured 7/4/6 policy.
+    for kind,count in [('DAILY',7),('WEEKLY',4),('MONTHLY',6)]:
+        monkeypatch.setenv('STOCK16_BACKUP_'+kind,str(count))
     ingest('2026-01-01',[stock])
     for d in range(50): backup(repo,date(2026,1,1)+timedelta(days=d))
     root=repo.root/'backups'

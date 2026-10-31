@@ -10,10 +10,16 @@ OFFICIAL_HOSTS={'fund.nps.or.kr','www.nps.or.kr','www.nbim.no','nbim.no',
  'www.gic.com.sg','gic.com.sg','www.temasek.com.sg','www.temasekreview.com.sg',
  'data.krx.co.kr','openapi.krx.co.kr','www.samsungfund.com','m.samsungfund.com',
  'www.tigeretf.com','www.sec.gov','data.sec.gov','opendart.fss.or.kr'}
+OFFICIAL_HOSTS.update({'tigeretf.com','www.riseetf.co.kr','riseetf.co.kr',
+ 'www.aceetf.co.kr','aceetf.co.kr','www.soletf.co.kr','soletf.co.kr',
+ 'www.plusetf.co.kr','plusetf.co.kr'})
 
 
 class FetchError(RuntimeError):
-    pass
+    def __init__(self,message,status_code=None,retry_after=None):
+        super().__init__(message)
+        self.status_code=status_code
+        self.retry_after=retry_after
 
 
 class Transport:
@@ -37,6 +43,11 @@ class Transport:
         """Do not log URLs: DART query strings may contain an API key."""
         try:
             return self._fetch(url,types,robots)
+        except requests.HTTPError as error:
+            response=error.response
+            code=response.status_code if response is not None else None
+            raise FetchError('Official upstream HTTP '+str(code),status_code=code,
+                             retry_after=response.headers.get('Retry-After') if response is not None else None) from None
         except (requests.RequestException,OSError) as e:
             raise FetchError('Upstream unavailable or timeout ('+type(e).__name__+')') from None
 

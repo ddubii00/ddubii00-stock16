@@ -28,7 +28,8 @@ def article(body):
     if not published:
         match=re.search(r'"datePublished"\s*:\s*"([^"]+)"',text)
         published=html.unescape(match[1]) if match else None
-    title=' '.join(parser.title).strip() or parser.values.get('og:title')
+    # Pages contain navigation/banner h1 elements as well as the article heading.
+    title=parser.values.get('og:title') or ' '.join(parser.title).strip()
     if not published or not title:raise ValueError('Official article date/title unavailable')
     from datetime import datetime
     datetime.fromisoformat(published.replace('Z','+00:00'))

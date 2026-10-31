@@ -4,6 +4,7 @@ from decimal import Decimal
 from ..model import import_snapshot,import_allocation,number,now
 from ..storage import store_document
 from .base import NeedsConfiguration
+from ..source_state import queue_review,record_status
 
 BASE='https://www.nbim.no/api/investments/v2/'
 
@@ -27,14 +28,26 @@ def normalize_holdings(records,total_usd):
 class NBIMCollector:
     def __init__(self,repo,transport,config): self.repo,self.transport,self.config=repo,transport,config
 
-    def run(self):
+    def run(self,history=False,from_year=None):
         body,_,_=self.transport.fetch(BASE+'init.json',{'application/json'})
         init=json.loads(body)['data']
         count=0
-        for detail in sorted(init['details'][:2],key=lambda d:d['date']):
+        self.warnings=[]
+        details=sorted(init['details'],key=lambda d:d['date'],reverse=True)
+        if not history: details=details[:2]
+        if from_year: details=[d for d in details if d['date'][:4]>=str(from_year)]
+        for detail in reversed(details):
             asof=detail['date'][:10]
             pub=self.config.get('publication_dates',{}).get(asof)
-            if not pub: raise NeedsConfiguration('새 NBIM dataset '+asof+' 발견: 공식 발표일 검증·설정 필요')
+            if not pub or not pub.get('published_at') or not pub.get('source_url'):
+                url=BASE+detail['fileName']
+                queue_review(self.repo,'nbim','nbim',asof,url,'공식 publication date 검증 필요')
+                self.warnings.append('NBIM '+asof+' 공식 발표일 검증 필요')
+                continue
+            if not pub['source_url'].startswith('https://www.nbim.no/'):
+                raise ValueError('Publication evidence must be an official NBIM source')
+            if history and self.repo.rows('SELECT id FROM portfolio_snapshots WHERE fund_id=? AND as_of_date=? AND published_at=?',('nbim',asof,pub['published_at'])):
+                continue
             publication=pub['published_at']
             url=BASE+detail['fileName']
             dataset,media,url=self.transport.fetch(url,{'application/json'})
@@ -62,4 +75,10 @@ class NBIMCollector:
                 store_document(self.repo,raw,kind,{**meta,'source_url':final})
             self.repo.execute('INSERT OR IGNORE INTO disclosures(institution_id,external_id,title,published_at,as_of_date,fetched_at,kind,importance,source_url) VALUES(?,?,?,?,?,?,?,?,?)',
                ('nbim','holdings-'+asof,'NBIM 공개 보유내역 · '+asof,publication,asof,now(),'holdings release',1,pub['source_url']))
+            self.repo.execute('DELETE FROM history_review_queue WHERE collector=? AND fund_id=? AND as_of_date=?',('nbim','nbim',asof))
+        from . import next_scheduled
+        status=('partial' if count else 'needs_review') if self.warnings else 'success' if count else 'no_new_data'
+        record_status(self.repo,'institution','nbim','holdings','nbim',status,
+                      '; '.join(self.warnings) or '공식 공개 기준일 기준',
+                      'https://www.nbim.no/en/investments/all-investments/',next_scheduled('nbim'))
         return count

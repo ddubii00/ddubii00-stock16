@@ -81,3 +81,38 @@ def test_mobile_and_secure_headers(app):
         assert 'frame-ancestors' in r.headers['Content-Security-Policy']
         css=c.get('/stock16-7/static/app.css').text
         assert '@media(max-width:700px)' in css
+
+
+def test_consensus_bad_period_is_rejected(app):
+    with app.test_client() as c:
+        signin(c)
+        assert c.get('/stock16-7/api/consensus?period=typo').status_code==400
+        assert c.get('/stock16-7/api/consensus?period=1m').status_code==200
+
+
+def test_api_quantity_rankings_never_mix_institution_shares_with_pdf(app):
+    from stock16.model import import_snapshot
+    from stock16.storage import store_document
+    import json
+    repo=app.extensions['repo']
+    for fund,kind in [('nps','nps'),('etf-069500','krx-etf')]:
+        for day,shares in [('2026-09-30','10'),('2026-10-30','12')]:
+            meta=dict(fund_id=fund,as_of_date=day,published_at=day,source_type=kind,
+                      source_url='https://fund.nps.or.kr/TEST',currency='KRW',disclosure_scope='full')
+            rows=[dict(name='TEST',kr_code='005930',shares=shares)]
+            sha=store_document(repo,json.dumps(rows).encode(),'application/json',meta)
+            import_snapshot(repo,meta,rows,sha)
+    with app.test_client() as c:
+        signin(c)
+        actual=c.get('/stock16-7/api/rankings?metric=shares_delta').json['rows']
+        pdf=c.get('/stock16-7/api/rankings?metric=quantity_delta').json['rows']
+        assert {r['fund_id'] for r in actual}=={'nps'}
+        assert {r['fund_id'] for r in pdf}=={'etf-069500'}
+        holding=c.get('/stock16-7/api/institutions/kr-etf/holdings?fund=etf-069500').json
+        assert holding['rows'][0]['quantity_type']=='pdf_per_cu_quantity'
+        assert holding['rows'][0]['quantity']=='12'
+        assert c.get('/stock16-7/api/institutions/nps/holdings?fund=etf-069500').status_code==400
+        obs=c.get('/stock16-7/api/consensus?period=1m').json[0]['observations']
+        assert {r['before_as_of_date'] for r in obs}=={'2026-09-30'}
+        status=c.get('/stock16-7/api/data-status').json
+        assert all(k in status['storage'] for k in ('wal_bytes','logs_bytes','disk_used_bytes','human_readable','counts'))

@@ -58,8 +58,12 @@ def parse_home(body):
 
 
 class NPSCollector:
-    def __init__(self,repo,transport): self.repo,self.transport=repo,transport
+    def __init__(self,repo,transport,config=None):
+        self.repo,self.transport,self.config=repo,transport,config or {}
     def run(self):
+        from ..source_state import record_status
+        from . import next_scheduled
+        self.warnings=[]
         body,_,url=self.transport.fetch('https://fund.nps.or.kr/main.do',{'text/html'})
         asof,published,rows,notices=parse_home(body)
         meta=dict(fund_id='nps',as_of_date=asof,published_at=published,source_url=url,source_type='nps',currency='KRW',disclosure_scope='partial',data_quality='Official-derived')
@@ -71,4 +75,31 @@ class NPSCollector:
             with self.repo.connect() as c:
                 count+=c.execute('INSERT OR IGNORE INTO disclosures(institution_id,external_id,title,published_at,as_of_date,fetched_at,kind,importance,source_url) VALUES(?,?,?,?,?,?,?,?,?)',
                   ('nps',n['id'],n['title'],n['published_at'],asof if n['published_at']==published else None,now(),'기금공시',1,n['source_url'])).rowcount
+        record_status(self.repo,'institution','nps','allocation','nps','success' if count else 'no_new_data',
+                      '월간 배분 · 상세 종목 공개 시차 존재',url,next_scheduled('nps'))
+        if self.config.get('discovery_rules') or self.config.get('datasets'):
+            from .discovery import ReviewedDiscoveryCollector
+            from .base import DatasetCollector,NeedsConfiguration
+            try:
+                parser=DatasetCollector(self.repo,self.transport,{'id':'nps',**self.config})
+                items=list(self.config.get('datasets',[]))
+                if self.config.get('discovery_rules'):
+                    items+=ReviewedDiscoveryCollector(self.repo,self.transport,{'id':'nps',**self.config}).discover()
+                extra=0
+                for item in items:
+                    body,media,final=parser.fetch(item)
+                    extra+=parser.persist(item,body,media,final,parser.normalize(parser.parse(body,item),item))
+                count+=extra
+                record_status(self.repo,'institution','nps','detailed_holdings','nps','success' if extra else 'no_new_data',
+                              '검증한 공식 상세 파일 · 공개 시차 존재',url,next_scheduled('nps'))
+            except Exception as error:
+                message=str(error) if isinstance(error,NeedsConfiguration) else '상세 공식 파일 수집 실패 · '+type(error).__name__
+                record_status(self.repo,'institution','nps','detailed_holdings','nps',
+                              'needs_configuration' if isinstance(error,NeedsConfiguration) else 'error',message,url,next_scheduled('nps'))
+                self.warnings.append(message)
+        else:
+            message='공식 파일 수동 등록 필요 · 국내/해외주식·대량보유 파일 mapping 미설정'
+            record_status(self.repo,'institution','nps','detailed_holdings','nps','needs_configuration',
+                          message,url,next_scheduled('nps'))
+            self.warnings.append(message)
         return count

@@ -143,6 +143,22 @@
       "category": "미국 S&P500",
       "source_url": "https://www.tigeretf.com/",
       "verified_on": "2026-10-31"
+    },
+    {
+      "id": "etf-466920",
+      "name": "SOL 조선TOP3플러스",
+      "code": "466920",
+      "category": "조선",
+      "source_url": "https://www.soletf.co.kr/ko/fund/etf/211028",
+      "verified_on": "2026-10-31"
+    },
+    {
+      "id": "etf-266550",
+      "name": "PLUS 중형주저변동50",
+      "code": "266550",
+      "category": "중형주",
+      "source_url": "https://www.plusetf.co.kr/product/detail?n=006304",
+      "verified_on": "2026-10-31"
     }
   ],
   "gurus": [
@@ -187,6 +203,32 @@
       "name": "Tiger Global",
       "cik": "0001167483",
       "source_url": "https://www.sec.gov/edgar/browse/?CIK=0001167483"
+    }
+  ],
+  "funds": [
+    {
+      "id": "nps-domestic-equity",
+      "institution_id": "nps",
+      "name": "국민연금 · 국내주식 공개목록",
+      "kind": "Pension",
+      "code": null,
+      "source_url": "https://fund.nps.or.kr/"
+    },
+    {
+      "id": "nps-foreign-equity",
+      "institution_id": "nps",
+      "name": "국민연금 · 해외주식 공개목록",
+      "kind": "Pension",
+      "code": null,
+      "source_url": "https://fund.nps.or.kr/"
+    },
+    {
+      "id": "nps-large-holdings",
+      "institution_id": "nps",
+      "name": "국민연금 · 대량보유 부분 공시",
+      "kind": "Pension",
+      "code": null,
+      "source_url": "https://fund.nps.or.kr/"
     }
   ]
 }

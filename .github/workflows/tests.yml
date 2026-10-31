@@ -10,5 +10,6 @@ jobs:
           python-version: '3.12'
       - run: pip install -r requirements-dev.txt
       - run: python -m pytest -q
+      - run: python -m compileall -q stock16
       - run: node --check stock16/static/app.js
       - run: bash -n deploy/install.sh deploy/update.sh

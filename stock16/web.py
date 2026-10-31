@@ -9,6 +9,8 @@ from .db import Repository
 from .analytics import Analytics,PERIODS
 from .auth import authenticated,check_csrf,csrf_token,login,token_hash
 from .storage import storage_status
+from .periods import SUPPORTED_PERIODS
+from .freshness import decorate_entities
 
 
 def create_app(test_config=None):
@@ -71,9 +73,10 @@ def create_app(test_config=None):
 
     @bp.get('/api/institutions/<identifier>')
     def institution(identifier):
-        rows=repo.rows('SELECT * FROM institutions WHERE id=?',(identifier,))
+        rows=[row for row in a.institutions() if row['id']==identifier]
         if not rows: abort(404)
-        return jsonify(**rows[0],funds=repo.rows('SELECT * FROM funds WHERE institution_id=?',(identifier,)))
+        funds=repo.rows('SELECT * FROM funds WHERE institution_id=?',(identifier,))
+        return jsonify(**rows[0],funds=decorate_entities(repo,funds,'fund'))
 
     def validate_date(value):
         if value:
@@ -111,19 +114,32 @@ def create_app(test_config=None):
 
     @bp.get('/api/institutions/<identifier>/holdings')
     def holdings(identifier):
-        result=a.holdings(request.args.get('fund',identifier),validate_date(request.args.get('as_of')))
+        fund=selected_fund(identifier)
+        result=a.holdings(fund,validate_date(request.args.get('as_of')))
         result['rows']=filters(result['rows'])
         if result['snapshot']:
             for row in result['rows']:
                 row.update({k:result['snapshot'][k] for k in ('as_of_date','published_at','fetched_at','source_url','data_quality','disclosure_scope')})
         return output(result)
 
+    def selected_fund(identifier):
+        if request.args.get('fund'):
+            fund=request.args['fund']
+            if not repo.rows('SELECT id FROM funds WHERE id=? AND (institution_id=? OR id=?)',(fund,identifier,identifier)):
+                abort(400)
+            return fund
+        if a.snapshot(identifier,validate_date(request.args.get('as_of'))):
+            return identifier
+        candidates=repo.rows('SELECT fund_id FROM effective_snapshots WHERE institution_id=? AND as_of_date<=? ORDER BY as_of_date DESC LIMIT 1',
+                              (identifier,request.args.get('as_of') or '9999-12-31'))
+        return candidates[0]['fund_id'] if candidates else identifier
+
     @bp.get('/api/institutions/<identifier>/changes')
     @bp.get('/api/etfs/<identifier>/changes')
     def changes(identifier):
         period=request.args.get('period','previous')
         if period not in (*PERIODS,'previous','5b','20b'): abort(400)
-        result=a.changes(request.args.get('fund',identifier),period,validate_date(request.args.get('as_of')),validate_date(request.args.get('from')))
+        result=a.changes(selected_fund(identifier),period,validate_date(request.args.get('as_of')),validate_date(request.args.get('from')))
         result['rows']=filters(result['rows'])
         return output(result)
 
@@ -131,10 +147,10 @@ def create_app(test_config=None):
     def allocation(identifier): return output(filters(a.allocation(identifier)))
 
     @bp.get('/api/etfs')
-    def etfs(): return jsonify(repo.rows('SELECT f.*,w.enabled,(SELECT max(as_of_date) FROM effective_snapshots p WHERE p.fund_id=f.id) latest_as_of FROM funds f JOIN etf_watchlist w ON w.fund_id=f.id'))
+    def etfs(): return jsonify(decorate_entities(repo,repo.rows('SELECT f.*,w.enabled FROM funds f JOIN etf_watchlist w ON w.fund_id=f.id'),'fund'))
 
     @bp.get('/api/gurus')
-    def gurus(): return jsonify(repo.rows('SELECT i.*,g.cik,g.corp_code,g.enabled,g.disclosure_level FROM institutions i JOIN guru_watchlist g ON g.institution_id=i.id'))
+    def gurus(): return jsonify(decorate_entities(repo,repo.rows('SELECT i.*,g.cik,g.corp_code,g.enabled,g.disclosure_level FROM institutions i JOIN guru_watchlist g ON g.institution_id=i.id'),'institution'))
 
     @bp.route('/api/watchlist/<kind>',methods=['POST','DELETE'])
     def watchlist(kind):
@@ -153,7 +169,7 @@ def create_app(test_config=None):
                 if not name or not source.startswith('https://'): abort(400)
                 if kind=='etf':
                     code=body.get('code','')
-                    if not re.fullmatch(r'\d{6}',code): abort(400)
+                    if not re.fullmatch(r'[0-9][0-9A-Z]{5}',code): abort(400)
                     c.execute('INSERT INTO funds VALUES(?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,source_url=excluded.source_url',
                               (identifier,'kr-etf',name,'ETF',code,source))
                     c.execute('INSERT INTO etf_watchlist VALUES(?,1) ON CONFLICT(fund_id) DO UPDATE SET enabled=1',(identifier,))
@@ -183,19 +199,28 @@ def create_app(test_config=None):
         return jsonify(**rows[0],attention=dict(
             holding_institutions=len({p['institution_id'] for p in positions if p['kind']!='ETF'}),
             etf_count=len({p['fund_id'] for p in positions if p['kind']=='ETF'}),
-            new_institutions=len({p['institution_id'] for p in positions if p['status']=='NEW'}),
-            increased_institutions=len({p['institution_id'] for p in positions if p['shares_delta'] is not None and Decimal(p['shares_delta'])>0}),
-            decreased_institutions=len({p['institution_id'] for p in positions if p['shares_delta'] is not None and Decimal(p['shares_delta'])<0})))
+            new_institutions=len({p['institution_id'] for p in positions if p['kind']!='ETF' and p['status']=='NEW'}),
+            increased_institutions=len({p['institution_id'] for p in positions if p['kind']!='ETF' and p['quantity_type']=='shares' and p['shares_delta'] is not None and Decimal(p['shares_delta'])>0}),
+            decreased_institutions=len({p['institution_id'] for p in positions if p['kind']!='ETF' and p['quantity_type']=='shares' and p['shares_delta'] is not None and Decimal(p['shares_delta'])<0})))
 
     @bp.get('/api/rankings')
     def rankings():
         from decimal import Decimal
-        rows=repo.rows('''SELECT ch.*,s.name,s.country,s.sector,p.fund_id,p.as_of_date,p.published_at,p.source_url,f.name fund_name,p.currency
+        rows=repo.rows('''SELECT ch.*,s.name,s.country,s.sector,p.fund_id,p.as_of_date,p.published_at,p.source_url,f.name fund_name,p.currency,p.quantity_type
           FROM holding_changes ch JOIN effective_snapshots p ON p.id=ch.snapshot_id
           JOIN securities s ON s.id=ch.security_id JOIN funds f ON f.id=p.fund_id
           WHERE p.id=(SELECT e.id FROM effective_snapshots e WHERE e.fund_id=p.fund_id ORDER BY e.as_of_date DESC LIMIT 1)''')
         field=request.args.get('metric','shares_delta')
+        if field=='quantity_delta':
+            field='shares_delta'
+            wanted_type='pdf_per_cu_quantity'
+        else:
+            wanted_type=request.args.get('quantity_type','shares')
         if field not in ('shares_delta','portfolio_weight_delta_pp','market_value_delta'): abort(400)
+        if field=='shares_delta':
+            rows=[r for r in rows if r['quantity_type']==wanted_type]
+        for row in rows:
+            row.update(quantity_delta=row['shares_delta'],quantity_delta_pct=row['shares_delta_pct'])
         rows=filters(rows)
         if request.args.get('currency'): rows=[r for r in rows if r['currency']==request.args['currency']]
         rows=[r for r in rows if r[field] is not None]
@@ -211,7 +236,9 @@ def create_app(test_config=None):
         except ValueError: abort(400)
         mode=request.args.get('mode','increased')
         if mode not in ('held','increased','weight','new'): abort(400)
-        result=a.consensus(request.args.get('period','1m'),minimum,mode,request.args.getlist('institution') or None)
+        period=request.args.get('period','1m')
+        if period not in SUPPORTED_PERIODS: abort(400)
+        result=a.consensus(period,minimum,mode,request.args.getlist('institution') or None)
         return jsonify(filters(result))
 
     @bp.get('/api/disclosures')
@@ -222,6 +249,8 @@ def create_app(test_config=None):
         return jsonify(storage=storage_status(repo),runs=repo.rows('SELECT * FROM data_fetch_runs ORDER BY id DESC LIMIT 100'),
           collectors=repo.rows("SELECT collector,max(CASE WHEN status IN ('success','no_new_data') THEN finished_at END) last_success,max(CASE WHEN status='partial' THEN finished_at END) last_partial,max(started_at) last_check FROM data_fetch_runs GROUP BY collector"),
           snapshots=repo.rows('SELECT fund_id,count(*) count,max(as_of_date) as_of_date,max(published_at) published_at FROM portfolio_snapshots GROUP BY fund_id'),
+          source_statuses=repo.rows('SELECT * FROM source_status ORDER BY entity_type,entity_id,component'),
+          history_review=repo.rows('SELECT * FROM history_review_queue ORDER BY discovered_at DESC LIMIT 100'),
           pending_review=repo.rows("SELECT count(*) count FROM securities WHERE review_status='review'")[0]['count'])
 
     app.register_blueprint(bp)

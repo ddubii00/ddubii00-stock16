@@ -18,7 +18,7 @@ Python 3.12+ / Flask / Gunicorn / SQLite WAL. Node 빌드 없이 로컬 정적 C
 
 매일 가격이 바뀌면 새로운 보유값이 생긴다. 원본 전체행을 무조건 압축 DB에 저장하는 방식이나 모든 날짜를 하나의 delta chain으로 연결하는 방식은 사용하지 않았다. 읽기 안정성과 불변 이력을 유지하면서 같은 값/상태의 중복과 긴 reference 비용을 줄인다. 보유 숫자는 반올림하여 dedup하지 않는다.
 
-`effective_snapshots`는 기준일마다 가장 늦은 공시 revision을 선택한다. 공시일 미제공인 ETF 원본은 NULL로 보존하고 수집 순서로 revision을 선택한다. 재수집 checksum은 idempotent하므로 과거 revision을 중복 수집해도 유효 이력이 뒤집히지 않는다. 과거 자료 추가/정정 시 해당 fund의 인접 변화량을 재계산한다. 원본 snapshot은 변경하지 않는다.
+`effective_snapshots`는 기준일마다 가장 늦은 공시 revision을 선택한다. 공시일 미제공인 ETF 원본은 NULL로 보존하고 수집 순서로 revision을 선택한다. 재수집 checksum은 idempotent하므로 과거 revision을 중복 수집해도 유효 이력이 뒤집히지 않는다. 과거 자료 추가/정정 시 바로 이전 effective → 현재, 현재 → 바로 다음 effective의 최대 두 구간만 재계산한다. 비유효 과거 revision 추가는 기존 변화량을 건드리지 않는다. 전체 rebuild는 debug/검증용으로 남긴다. 임의 기간 비교와 Consensus는 공유 period selector로 고른 실제 snapshot 두 개를 직접 비교한다. 원본 snapshot은 변경하지 않는다.
 
 ## 날짜·해석
 
@@ -31,3 +31,13 @@ Python 3.12+ / Flask / Gunicorn / SQLite WAL. Node 빌드 없이 로컬 정적 C
 수집은 systemd oneshot + timer다. flock으로 scheduler 중복 실행을 막고 한 소스 실패가 다음 collector를 막지 않는다. 수집 상태는 success / no_new_data / needs_configuration / error로 기록한다. 오류 문자열과 credential URL은 저장하지 않는다. 구조 변경/추가보고/불명확 식별자는 검토가 필요하다.
 
 SQLite online backup, 무결성 검사, gzip, 일/주/월 세대 순환을 제공한다. 같은 backup은 hard link로 세대 간 공유한다. 보존·수집의 raw 파일 작업은 flock, 임시파일과 atomic rename으로 보호한다. 원본 보존 삭제는 normalized 데이터와 source checksum을 지우지 않는다.
+
+## v2 migration과 수량 의미
+
+기존 v1 schema를 생성 기반으로 유지하고 `migrations.py`의 버전별 SQL로 업그레이드한다. online 사전 백업 뒤 BEGIN IMMEDIATE/COMMIT으로 새 column·index·상태 table을 추가하며 실패는 전체 rollback한다. schema_versions는 완료한 버전만 기록한다. 초기화는 파일 잠금으로 직렬화한다. 운영 snapshot과 holding value/set hash는 유지한다.
+
+quantity_type은 snapshot 단위의 `shares` / `pdf_per_cu_quantity` / `unavailable`이다. 기존 ETF snapshot은 migration에서 PDF 의미로 주석을 붙인다. API quantity 별칭은 저장된 기존 값을 사용하므로 중복 수량 column을 만들지 않는다. PDF 수량과 실제 주식 수 사이의 비교는 NULL delta와 QUANTITY_SEMANTICS_CHANGED로 분리한다. 기관/ETF 수량의 합계나 매수 추정치는 만들지 않는다.
+
+source_status는 기관·펀드·구성요소별 마지막 점검·성공·예정·상태를 기록한다. aggregate collector의 일부 실패가 정상 ETF를 실패로 덮지 않는다. history_review_queue는 발표일 미검증 NBIM 자료나 검토가 필요한 filing을 분석에 투입하지 않고 표시한다. SEC 목록 cache는 원본 역사자료와 독립적인 bounded gzip cache다.
+
+기본 GFS는 3/2/3이며 명시한 환경 설정이 우선한다. 매일 maintenance는 bounded PRAGMA optimize와 WAL checkpoint만 실행한다. 체크포인트가 사용 중이면 busy 결과를 반환한다. VACUUM은 수동 명령이며 공간 검사·backup이 선행한다. 정규화 자료는 보존한다.

@@ -31,8 +31,10 @@ def setup():
 def main():
     parser=argparse.ArgumentParser(prog='python -m stock16')
     sub=parser.add_subparsers(dest='command',required=True)
-    for name in ('setup','init','serve','backup','status','check-storage'): sub.add_parser(name)
+    for name in ('setup','init','serve','backup','status','check-storage','maintenance','vacuum'): sub.add_parser(name)
     collect=sub.add_parser('collect');collect.add_argument('--only',nargs='+');collect.add_argument('--config',type=Path)
+    history=sub.add_parser('backfill');history.add_argument('collector',choices=['nbim','sec-13f'])
+    history.add_argument('--guru');history.add_argument('--from-year',type=int);history.add_argument('--config',type=Path)
     retention=sub.add_parser('retention');retention.add_argument('--apply',action='store_true')
     ingest=sub.add_parser('import');ingest.add_argument('file',type=Path);ingest.add_argument('--config',type=Path,required=True);ingest.add_argument('--collector',required=True,choices=['nps','nbim','krx-etf','gic','temasek','dart'])
     restore=sub.add_parser('restore');restore.add_argument('file',type=Path);restore.add_argument('--target',type=Path,required=True)
@@ -54,6 +56,14 @@ def main():
         results=run_collectors(repo,args.only,config_path=args.config)
         print(json.dumps(results,ensure_ascii=False,indent=2))
         if any(r['status']=='error' for r in results): raise SystemExit(1)
+    elif args.command=='backfill':
+        from .collectors import run_backfill
+        result=run_backfill(repo,args.collector,guru=args.guru,from_year=args.from_year,config_path=args.config)
+        print(json.dumps(result,ensure_ascii=False,indent=2))
+        if result['status']=='error': raise SystemExit(1)
+    elif args.command in ('maintenance','vacuum'):
+        from .storage import maintain_database
+        print(json.dumps(maintain_database(repo,vacuum=args.command=='vacuum'),indent=2))
     elif args.command=='import':
         from .collectors.base import DatasetCollector
         from .collectors.transport import Transport

@@ -1,7 +1,8 @@
 """Official manager fallback for KRX PDF. No OTP/session-policy circumvention."""
 import json
 import re
-from datetime import datetime,timedelta
+from datetime import date,datetime,timedelta
+import os
 from zoneinfo import ZoneInfo
 from ..model import import_snapshot
 from ..storage import store_document
@@ -16,7 +17,7 @@ def parse_pdf(data):
     normalized=[]
     for row in rows:
         code=row['itmNo']
-        domestic=bool(re.fullmatch(r'\d{6}',code))
+        domestic=bool(re.fullmatch(r'[0-9][0-9A-Z]{5}',code))
         isin=code if re.fullmatch(r'[A-Z]{2}[A-Z0-9]{9}\d',code) and not code.startswith('KRD') else None
         # Cash balances and derivatives are not share quantities.
         item=dict(name=row['secNm'],market_value=row.get('evalA'),weight=row.get('ratio'),
@@ -30,41 +31,80 @@ def parse_pdf(data):
     return raw_date[:4]+'-'+raw_date[4:6]+'-'+raw_date[6:],normalized
 
 
-class KRXETFCollector:
-    def __init__(self,repo,transport,config): self.repo,self.transport,self.config=repo,transport,config
+def planned_days(repo,fund_id,today,max_days):
+    if not 1<=max_days<=3660:
+        raise ValueError('ETF backfill bound must be 1..3660 calendar days')
+    cutoff=today-timedelta(days=max_days-1)
+    snapshots=repo.rows('SELECT DISTINCT as_of_date FROM portfolio_snapshots WHERE fund_id=?',(fund_id,))
+    stored={r['as_of_date'] for r in snapshots}
+    earliest=min(stored) if stored else cutoff.isoformat()
+    start=max(cutoff,date.fromisoformat(earliest))
+    revision_days=max(1,min(int(os.environ.get('STOCK16_ETF_REVISION_DAYS','7')),max_days))
+    correction_cutoff=today-timedelta(days=revision_days-1)
+    latest=max(stored) if stored else None
+    days=[]
+    day=start
+    while day<=today:
+        if day.weekday()<5 and (day.isoformat() not in stored or day>=correction_cutoff or day.isoformat()==latest):
+            days.append(day)
+        day+=timedelta(days=1)
+    return days
 
-    def run(self):
-        today=datetime.now(ZoneInfo('Asia/Seoul')).date()
-        settings=self.config.get('kodex',{})
-        if not settings: raise NeedsConfiguration('공식 ETF 다운로드 매핑 설정 필요')
-        count=0
-        errors=[]
+
+class KRXETFCollector:
+    def __init__(self,repo,transport,config):
+        self.repo,self.transport,self.config=repo,transport,config
+
+    def run(self,today=None):
+        from .etf_adapters import make_adapters,provider_for
+        from ..source_state import record_status
+        from . import next_scheduled
+        today=today or datetime.now(ZoneInfo('Asia/Seoul')).date()
+        bound=int(os.environ.get('STOCK16_ETF_BACKFILL_DAYS','30'))
+        if not 1<=bound<=3660:
+            raise ValueError('ETF backfill bound must be 1..3660 calendar days')
         self.warnings=[]
-        catalogue,_,_=self.transport.fetch('https://www.samsungfund.com/api/v1/kodex/main/product.do?ordrColm=LIST_D&ordrSort=DESC&pageNo=1&srchTerm=w&pageRows=500',{'application/json'})
-        products={p['stkTicker']:p for p in json.loads(catalogue)}
-        for fund in self.repo.rows('SELECT f.* FROM funds f JOIN etf_watchlist w ON w.fund_id=f.id WHERE w.enabled=1'):
-            product=products.get(fund['code']) if 'samsungfund.com' in fund['source_url'] else None
-            fid=product['fId'] if product else None
-            if not fid:
-                self.warnings.append(fund['name']+' 공식 다운로드 설정 필요')
-                continue
-            if fund['code'] in settings and settings[fund['code']]!=fid:
-                raise ValueError('Official ETF code/product ID mismatch; review configuration')
-            self.repo.execute('UPDATE funds SET name=? WHERE id=?',(product['fNm'],fund['id']))
-            for offset in range(1,-1,-1):
-                day=today-timedelta(days=offset)
-                if day.weekday()>=5: continue
-                url='https://www.samsungfund.com/api/v1/kodex/product-pdf/'+fid+'.do?gijunYMD='+day.strftime('%Y.%m.%d')
-                try:
-                    body,media,final=self.transport.fetch(url,{'application/json'})
-                    asof,rows=parse_pdf(json.loads(body))
-                    if asof>today.isoformat(): continue
-                    # Official API exposes the basis date, not a publication timestamp.
-                    # NULL preserves that distinction instead of substituting fetch date.
-                    meta=dict(fund_id=fund['id'],as_of_date=asof,published_at=None,source_url=final,
-                       source_type='krx-etf',currency='KRW',disclosure_scope='full',data_quality='Official-derived')
-                    sha=store_document(self.repo,body,media,meta)
-                    count+=int(import_snapshot(self.repo,meta,rows,sha)[1])
-                except Exception as e: errors.append(fund['code']+':'+type(e).__name__)
-        self.warnings.extend(errors)
+        count=0
+        adapters=make_adapters(self.repo,self.transport,self.config)
+        funds=self.repo.rows('SELECT f.* FROM funds f JOIN etf_watchlist w ON w.fund_id=f.id WHERE w.enabled=1')
+        for fund in funds:
+            brand=provider_for(fund['source_url'])
+            status='no_new_data'
+            added=0
+            errors=[]
+            message='신규 데이터 없음 · 영업일 PDF 기준'
+            try:
+                if brand not in adapters:
+                    raise NeedsConfiguration('공식 ETF 운용사 또는 다운로드 매핑 설정 필요')
+                adapter=adapters[brand]
+                context=adapter.prepare(fund)
+                for day in planned_days(self.repo,fund['id'],today,bound):
+                    try:
+                        result=adapter.fetch_day(fund,day,context)
+                        if result is None:
+                            continue
+                        meta=dict(fund_id=fund['id'],as_of_date=result['as_of_date'],
+                          published_at=result['published_at'],source_url=result['source_url'],
+                          source_type='krx-etf',currency=self.config.get('currency','KRW'),
+                          disclosure_scope=result['disclosure_scope'],data_quality='Official-derived',
+                          quantity_type=result['quantity_type'])
+                        sha=store_document(self.repo,result['body'],result['media_type'],meta)
+                        added+=int(import_snapshot(self.repo,meta,result['rows'],sha)[1])
+                    except Exception as error:
+                        errors.append(day.isoformat()+':'+type(error).__name__)
+                if errors:
+                    status='partial' if added else 'error'
+                    message='일부 영업일 수집 실패 · '+'; '.join(errors[:5])
+                elif added:
+                    status='success'
+                    message='PDF snapshot '+str(added)+'건 저장'
+            except NeedsConfiguration as error:
+                status,message='needs_configuration',str(error)
+            except Exception as error:
+                status,message='error','공식 ETF 소스 확인 필요 · '+type(error).__name__
+            count+=added
+            record_status(self.repo,'fund',fund['id'],'holdings','krx-etf',status,message,
+                          fund['source_url'],next_scheduled('krx-etf'))
+            if status in ('needs_configuration','error','partial'):
+                self.warnings.append(fund['name']+' · '+message)
         return count

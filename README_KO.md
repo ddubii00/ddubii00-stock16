@@ -6,17 +6,17 @@
 
 | 소스 | 기본 동작 | 추가 설정 / 한계 |
 |---|---|---|
-| NPS | 공식 홈페이지의 최근 월별 자산배분·총액과 기금공시 수집 | 국내/해외 상세 보유목록은 공식 다운로드 파일과 컬럼 매핑을 등록하여 import. 연간 세부내역, 월간 배분, 분기 대량보유의 공개주기가 다름 |
-| NBIM | 공식 API로 최근 두 반기/연말 주식·채권 **issuer aggregate** 및 자산배분, 공식 CSV 원본 수집·diff | 공식 source-local ID는 검토 상태. 개별 bond issue/수량이 아닌 issuer별 금액. 미공개 shares는 NULL. 새로운 공개시점은 발표일 검증 후 설정 필요 |
-| KODEX ETF | 공식 상품 카탈로그의 코드·ID 대조 후 full Portfolio Deposit File JSON 수집. 기본 10개 상품, 추가한 KODEX도 코드로 발견 | KRX 로그인/OTP를 우회하지 않고 공식 운용사 자료 사용. TIGER 등 다른 운용사는 다운로드 adapter 설정 필요. API가 발표일을 주지 않아 NULL로 표시 |
-| SEC 13F | 공식 submissions → filing cover/index → informationTable XML → 정규화·diff | 운영자 이름·이메일을 담은 `STOCK16_SEC_USER_AGENT` 설정 필요. recent submissions 범위 내 초기 이력. 추가보고 amendment는 자동 병합하지 않고 검토 |
+| NPS | 공식 홈페이지의 최근 월별 자산배분·총액과 기금공시 수집 | 국내/해외·대량보유 목록은 검증한 공식 파일 mapping 및 discovery rule 등록 시 import. 기본 상세 파일 미설정은 `공식 파일 수동 등록 필요`로 표시. 연간 세부내역, 월간 배분, 분기 대량보유의 공개주기가 다름 |
+| NBIM | 공식 API로 최근 두 반기/연말 주식·채권 **issuer aggregate** 및 자산배분, 공식 CSV 원본 수집·diff | 공식 source-local ID는 검토 상태. 개별 bond issue/수량이 아닌 issuer별 금액. 미공개 shares는 NULL. 명시적 `backfill nbim`으로 과거 이력 수집. 발표일 미검증 자료는 검토 대기열에 보관하고 분석에서 제외 |
+| 국내 ETF | KODEX·SOL 공식 카탈로그로 코드·상품번호 대조, PLUS 공식 상세페이지 거래소 코드 대조 후 날짜별 full PDF JSON 수집. 기본 KODEX 10개 + SOL/PLUS 각 1개 | 최근 최대 30 calendar days 누락 평일 backfill, 최근 7일 정정 재확인. TIGER·RISE·ACE는 검증한 공식 다운로드 mapping 필요. 미제공 발표일은 NULL |
+| SEC 13F | 공식 submissions → filing cover/index → informationTable XML → 정규화·diff | 운영자 이름·이메일을 담은 `STOCK16_SEC_USER_AGENT` 설정 필요. 일상 수집은 recent submissions, 명시적 `backfill sec-13f`에서 `filings.files` 과거 목록 탐색. 추가보고 amendment는 자동 병합하지 않고 검토 |
 | GIC | 공식 newsroom의 최신 기사 최대 8개를 날짜·원문 발췌와 함께 수집 | 전체 종목 미공개. 자산군·지역 배분은 검증한 연차자료의 dataset mapping으로 입력 |
-| Temasek | 독립 기관·연간 배분/공개투자 dataset·공식 RSS adapter | 검증 환경에서 공식 사이트 HTTP 403. 우회하지 않으며 기본 상태 `needs_configuration`. 검증한 공식 파일을 수동 import하거나 허용된 다운로드/RSS 등록 |
+| Temasek | 독립 기관·연간 배분/공개투자 dataset·공식 RSS 및 검증한 파일 discovery adapter | 검증 환경에서 공식 사이트 HTTP 403. 우회하지 않으며 기본 상태 `needs_configuration`. 검증한 공식 파일을 수동 import하거나 허용된 다운로드/RSS 등록 |
 | DART | 공식 API의 대량보유·특정증권 이벤트 공시 수집·원문 연결 | API key와 추적 기업 corp_code 필요. 이벤트만으로 전체 포트폴리오를 생성하지 않음. 종목별 수량은 검증된 구조화 자료 import 필요 |
 
 모든 기관의 상세 보유량과 전체 역사 자동수집이 별도 설정 없이 완성된 서비스는 아니다. 위 범위는 코드로 구분되어 있으며 미설정·실패를 정상 수집처럼 숨기지 않는다. 운영 데이터는 Git에 포함하지 않고 빈 DB로 시작한다. 테스트 fixture는 명확한 합성 자료이며 production에 로드되지 않는다.
 
-화면: 오늘의 변화, 기관별 보유·변화·자산배분, ETF 기간 비교, US/Korea Gurus, Consensus, 종목 검색과 기관별 보유, 공시 Timeline, 추적대상 추가/중지, 저장공간·수집 상태. 테이블 정렬·목록 검색·변화 필터·CSV 다운로드·모바일/명암 테마를 제공한다. API에서 날짜·국가·섹터·상태 필터와 metric별 순위를 조회할 수 있다. 숫자마다 snapshot 출처·날짜가 연결된다.
+화면: 오늘 발표·수집 정보와 최근 공개 포트폴리오 변화의 별도 영역, 기관·펀드 freshness, 기관별 보유·변화·자산배분, ETF 기간 비교, US/Korea Gurus, Consensus, 종목 검색과 기관별 보유, 공시 Timeline, 추적대상 추가/중지, 저장공간·수집 상태. 테이블 정렬·목록 검색·변화 필터·CSV 다운로드·모바일/명암 테마를 제공한다. API에서 날짜·국가·섹터·상태 필터와 metric별 순위를 조회할 수 있다. 숫자마다 snapshot 출처·날짜가 연결된다.
 
 ## 구조
 
@@ -25,6 +25,8 @@ stock16/
   schema.sql              정규화 schema / 불변 snapshot / source provenance
   db.py                   Repository 경계
   model.py                Decimal / 식별자 / import / corporate action / diff
+  migrations.py           사전 backup / v1 → v2 원자적 upgrade
+  periods.py, freshness.py 실제 비교기간 / 기관·펀드별 수집 상태
   analytics.py            기간 비교 / 교집합 / 자산배분 / 종목 분석
   auth.py, web.py          인증 / CSRF / API / UI
   storage.py              gzip dedup / retention / GFS backup / disk alert
@@ -70,9 +72,11 @@ STOCK16_SECURE_COOKIE=0 .venv/bin/python -m stock16 serve
 | `STOCK16_SEC_USER_AGENT` | SEC 정책에 맞는 실제 운영자 식별 이름·이메일 |
 | `OPENDART_API_KEY` | OpenDART key. 로그/Git에 남기지 않음 |
 | `STOCK16_RAW_MONTHS` | 12. ETF 전체 원본 유지 개월 |
-| `STOCK16_BACKUP_DAILY` | 7 |
-| `STOCK16_BACKUP_WEEKLY` | 4 |
-| `STOCK16_BACKUP_MONTHLY` | 6 |
+| `STOCK16_ETF_BACKFILL_DAYS` | 30 calendar days. 1~3660 범위, 최초 수집·중단 복구 탐색 상한 |
+| `STOCK16_ETF_REVISION_DAYS` | 7 calendar days. 최근 정정 재확인 (backfill 상한 이내) |
+| `STOCK16_BACKUP_DAILY` | 3 (기존 .env 명시값 보존) |
+| `STOCK16_BACKUP_WEEKLY` | 2 |
+| `STOCK16_BACKUP_MONTHLY` | 3 |
 | `STOCK16_ALERT_WEBHOOK` | 선택. 임계값 상승 시 저장공간 metric만 보내는 운영자 지정 HTTPS URL |
 
 인증 쿠키는 HttpOnly, Secure, SameSite=Strict, 경로 제한을 적용한다. 서버 DB 세션은 8시간이며 로그아웃 시 폐기한다. 미인증 화면은 로그인으로 이동하고 API는 401을 반환한다. 로그인 포함 모든 변경 요청에 CSRF token이 필요하다. DB 기반 IP당 15분 8회, 전체 80회 로그인 시도 제한은 worker 간 공유된다. nginx가 전달한 임의 XFF를 신뢰하지 않으므로 IP 제한은 직접 연결 IP 기준이며 reverse proxy에서는 proxy IP로 묶인다. 필요 시 신뢰된 단일 proxy만 명시하는 배포 설정으로 실제 IP를 전달해야 한다.
@@ -87,17 +91,27 @@ STOCK16_SECURE_COOKIE=0 .venv/bin/python -m stock16 serve
 .venv/bin/python -m stock16 collect --only gic temasek dart
 ```
 
-한 collector 실패 시 다음 collector를 계속 실행한다. data_fetch_runs에 마지막 점검·성공·다음 예정·오류·신규 없음 상태가 남는다. 새로운 NBIM dataset의 발표일은 공식 보고서/발표에서 확인한 뒤 sources.json의 publication_dates에 추가한다. 임의 수집일을 발표일로 바꾸지 않는다. NPS 월별 자산배분의 공시일도 해당 월의 공식 공시 제목·날짜와 일치할 때만 입력한다.
+한 collector 실패 시 다음 collector를 계속 실행한다. ETF는 펀드·날짜별 오류를 격리한다. 빈 휴일 응답과 직전 날짜를 재반환한 응답은 정상 skip하며 요청일로 다시 붙이지 않는다. 이미 저장된 동일 자료는 중복 추가하지 않고 달라진 공식 자료는 revision으로 남긴다. data_fetch_runs에 마지막 점검·성공·다음 예정·오류·신규 없음 상태가 남는다. 새로운 NBIM dataset의 발표일은 공식 보고서/발표에서 확인한 뒤 sources.json의 publication_dates에 추가한다. 임의 수집일을 발표일로 바꾸지 않는다. NPS 월별 자산배분의 공시일도 해당 월의 공식 공시 제목·날짜와 일치할 때만 입력한다.
 
 ### 검증된 공식 파일 import
 
-`config/dataset.example.json`을 복사해 URL·기준일·공시일·단위·공개범위와 **실제 파일 컬럼**을 맞춘다. 예시 URL과 날짜는 자동수집용 기본값이 아니다. 같은 mapping 객체를 config/sources.json 기관별 datasets 배열에 넣으면 scheduler가 다운로드한다. 특정 날짜 파일을 가리키는 mapping은 새로운 공개파일이 나올 때 갱신한다. ETF 자동 KODEX adapter는 날짜를 직접 탐색한다.
+`config/dataset.example.json`을 복사해 URL·기준일·공시일·단위·공개범위와 **실제 파일 컬럼**을 맞춘다. 예시 URL과 날짜는 자동수집용 기본값이 아니다. 같은 mapping 객체를 config/sources.json 기관별 datasets 배열에 넣으면 scheduler가 다운로드한다. 특정 날짜 파일을 가리키는 mapping은 새로운 공개파일이 나올 때 갱신한다. KODEX·SOL·PLUS 기본 adapter는 날짜를 직접 탐색한다.
+
+명시적인 역사 수집은 다음과 같다. 기본 일상 수집이 전체 역사를 반복하지 않는다.
+
+```bash
+.venv/bin/python -m stock16 backfill nbim
+.venv/bin/python -m stock16 backfill nbim --from-year 2015
+.venv/bin/python -m stock16 backfill sec-13f --guru berkshire --from-year 2015
+```
+
+NBIM은 `publication_dates`에 검증된 발표일·공식 근거 URL이 있는 시점만 ingest한다. 미검증 시점은 `/api/data-status`의 `history_review`에 표시한다. SEC는 운영자 식별 User-Agent, 0.25초 이상의 요청 간격, 429/503 제한 재시도·backoff를 사용한다. 과거 목록 JSON은 gzip cache(재사용 24시간, 정리 7일/32MiB)로 저장한다. 403/robots 거부는 재시도로 우회하지 않는다. 동일 accession 재수집은 중복 import하지 않는다.
 
 ```bash
 .venv/bin/python -m stock16 import /path/to/official.csv --collector nbim --config /path/to/reviewed-mapping.json
 ```
 
-CSV encoding/delimiter/skip_rows, XLSX sheet/skip_rows, structured JSON 배열을 지원한다. canonical 필드는 name, isin/cusip/kr_code 또는 source_security_id, shares, market_value, weight, ownership_pct, country, sector, currency, position_key다. weight는 0~100 퍼센트이며 market_value는 명시된 currency의 실제 통화 단위다. 예를 들어 million 단위 파일은 검증 후 기본 통화단위로 정규화해야 한다. ticker만으로 자동 병합하지 않는다. 식별 불확실성은 source-local ID와 review 상태로 남긴다.
+CSV encoding/delimiter/skip_rows, XLSX sheet/skip_rows, structured JSON 배열을 지원한다. canonical 필드는 name, isin/cusip/kr_code 또는 source_security_id, shares, market_value, weight, ownership_pct, country, sector, currency, position_key다. weight는 0~100 퍼센트이며 market_value는 명시된 currency의 실제 통화 단위다. 예를 들어 억원 단위 파일은 검증한 `multipliers: {"market_value": "100000000"}` 설정으로 실제 KRW 단위로 바꾼다. 원본은 변경하지 않는다. 비중의 분모가 국내주식 자산군인지 전체 기금인지도 검토해야 한다. NPS 국내/해외/대량보유는 `nps-domestic-equity`, `nps-foreign-equity`, `nps-large-holdings`로 분리한다. 검증된 전체 목록만 full, 일부 대량보유 공시는 partial로 등록한다. [adapter 설정과 검증 범위](docs/SOURCE_ADAPTERS.md)를 참고한다. ticker만으로 자동 병합하지 않는다. 식별 불확실성은 source-local ID와 review 상태로 남긴다.
 
 자산배분 dataset은 `kind: "allocation"`, mapping 필드 original_category, standard_category, weight, target_weight, market_value, dimension을 사용한다. dimension은 asset/region/sector/listing 등의 원본 구분을 보존한다. GIC와 Temasek의 분류를 NPS에 억지로 맞추지 않는다. PDF 표는 자동 추정 파싱하지 않으며 공식 CSV/XLSX 또는 검토한 추출 JSON을 사용한다.
 
@@ -109,13 +123,14 @@ CSV encoding/delimiter/skip_rows, XLSX sheet/skip_rows, structured JSON 배열�
 - shares_delta / shares_delta_pct / market_value_delta / portfolio_weight_delta_pp는 분리된다.
 - shares 미공개이면 수량 증가/감소를 생성하지 않는다. 금액·비중만 달라지면 VALUE_OR_WEIGHT_CHANGED다.
 - 부분 공개범위의 이탈은 전량 매도로 단정하지 않는다. full snapshot의 EXIT도 **해당 공개범위 내 제외**다.
-- ETF applyQ는 CU당 수량일 수 있으며 전체 펀드 매수량이 아니다. 현금·비주식 항목은 shares로 표시하지 않는다.
+- ETF applyQ/QTY/amount는 `quantity_type=pdf_per_cu_quantity`로 구분한다. **ETF PDF 구성수량 변화가 ETF 운용사의 실제 시장 순매수량과 동일하지 않을 수 있음.** CU당 구성수량은 ETF 전체 보유주식 수가 아니다. 현금·비주식 항목은 shares에서 제외한다.
+- 기존 shares 컬럼은 호환성을 위해 유지하며 API에 quantity / quantity_delta / quantity_delta_pct 별칭과 quantity_type을 반환한다. 기관 shares와 ETF PDF 수량을 합산하지 않는다. 수량 순위는 기관 주식 수와 ETF CU당 구성수량을 별도로 조회한다. 수량 기준이 바뀐 두 snapshot의 shares delta는 NULL이다.
 - SEC 13F는 분기말 공개 롱 포지션이며 제출 시차가 있다. 공매도·비공개 자산·일부 해외자산은 알 수 없다. 옵션 신고수량은 현물 shares로 저장하지 않는다. 2023-01-03 이전 filing value는 천 달러, 이후는 달러 단위로 처리한다.
 - NPS 상세 종목은 공개시차가 크다. 월별 기금규모를 월별 상세 보유량으로 해석하지 않는다.
 - NBIM은 반기·연말 공개이며 issuer-level aggregates를 개별 security issue로 추측하지 않는다.
 - 공식 corporate_actions에 security_id, effective_date, ratio, source_url을 등록하면 분할 조정 후 수량 delta와 원수량 delta를 같이 보존한다. 분할·합병·ticker 변경을 fuzzy 추론으로 자동 합치지 않는다.
 - 5b/20b는 저장된 영업일 관측 수다. 1/3/6/12개월 비교는 월말을 유지하는 달력 비교다. 누락된 일자는 채워 넣지 않고 실제 선택된 두 기준일을 반환한다.
-- Consensus는 각 fund 최근 공개시점과 출처를 함께 반환한다. 기관 수와 ETF 수를 구분하고 투자추천 점수는 만들지 않는다. 서로 다른 통화의 평가액 delta를 합산하지 않는다.
+- Consensus는 **각 fund에서 선택한 기간의 실제 before/after snapshot을 직접 비교**한다. 이전 일간 holding_changes를 월간 변화로 사용하지 않는다. 달력 목표일 이전의 가장 가까운 snapshot을 선택하며 이전 자료가 없으면 증가·신규 결과에서 제외한다. held 모드는 기준 자료가 없어도 보유를 표시하되 delta는 NULL이다. observation에 fund_id, institution_id, before_as_of_date, after_as_of_date, published_at, source_url, shares_delta, shares_delta_pct, portfolio_weight_delta_pp, status, quantity_type을 반환한다. 기관 수와 ETF 수를 구분하고 투자추천 점수는 만들지 않는다. 서로 다른 통화의 평가액 delta를 합산하지 않는다.
 
 ## API
 
@@ -136,7 +151,7 @@ GET /api/etfs/:id/changes
 GET /api/gurus
 GET /api/consensus?period=1m&minimum=3&mode=held|increased|weight|new&institution=nps&institution=nbim
 GET /api/disclosures?since=YYYY-MM-DD&institution=nps
-GET /api/rankings?metric=shares_delta|portfolio_weight_delta_pp|market_value_delta&direction=asc|desc&currency=KRW
+GET /api/rankings?metric=shares_delta|quantity_delta|portfolio_weight_delta_pp|market_value_delta&direction=asc|desc&currency=KRW
 GET /api/data-status
 POST, DELETE /api/watchlist/etf
 POST, DELETE /api/watchlist/guru
@@ -157,18 +172,20 @@ ETF 원본은 기준일로 최근 12개월을 전부 보존하고 그 이전은 
 .venv/bin/python -m stock16 check-storage
 ```
 
-`/api/data-status`와 화면은 DB+WAL, raw-data, backup, 데이터 폴더 전체, filesystem 사용률을 표시한다. 디스크 70/80/90%를 넘으면 화면 경고와 app log를 남긴다. webhook 설정 시 임계 등급이 올라갈 때 한 번 전송하며 회복 후 재상승하면 다시 알린다. 전송 실패는 다음 점검에서 재시도한다. 폴더 전체는 data root만 측정하며 checkout/venv/OS 사용량은 filesystem 사용률에 반영된다. macOS APFS는 공간 공유·purgeable 영역으로 도구별 수치가 다를 수 있다.
+`/api/data-status`와 화면은 DB 본체, WAL/SHM, raw-data, backup, logs, cache, stock16 데이터 폴더 전체 및 서버 filesystem total/used/free/%를 분리한다. bytes와 사람이 읽는 단위, portfolio_snapshots/ETF snapshot/holding_values/holding_sets/source_documents 개수를 제공한다. 서버 사용률이 stock16 자체 점유율이라는 뜻은 아니다. 디스크 70/80/90%를 넘으면 화면 경고와 app log를 남긴다. webhook 설정 시 임계 등급이 올라갈 때 한 번 전송하며 회복 후 재상승하면 다시 알린다. 전송 실패는 다음 점검에서 재시도한다. 폴더 전체는 data root만 측정하며 checkout/venv/OS 사용량은 filesystem 사용률에 반영된다. macOS APFS는 공간 공유·purgeable 영역으로 도구별 수치가 다를 수 있다.
 
 app log는 WatchedFileHandler + logrotate, Gunicorn은 USR1 reopen을 사용한다. 일간 7개, 10MB maxsize, gzip. debug는 기본 비활성화하고 access log는 비활성화하여 query credential 유출을 줄인다. 만료 세션·로그인 제한 기록은 maintenance에서 청소하고 수집 실행 이력은 최근 365일을 보존한다. 정규화 역사자료는 삭제하지 않는다.
 
 ## DB 백업·복원
 
 ```bash
+.venv/bin/python -m stock16 maintenance  # bounded optimize + WAL checkpoint, VACUUM 없음
+.venv/bin/python -m stock16 vacuum       # 명시적 수동 실행만, 여유 공간 검사 + 사전 backup
 .venv/bin/python -m stock16 backup
 .venv/bin/python -m stock16 restore /path/to/daily-YYYY-MM-DD.sqlite3.gz --target /path/to/new-restored.sqlite3
 ```
 
-SQLite online backup → `PRAGMA integrity_check` → gzip → atomic publish. 일간 7개, ISO 주간 4개, 월간 6개가 기본이며 env로 바꿀 수 있다. 같은 파일을 일/주/월 generation이 hard link로 공유한다. 각 주/월에는 마지막 성공본을 남긴다. 복원은 기존 파일을 덮어쓰지 않고 새 복사본만 만든다. 운영 복원은 서비스를 정지하고 검증된 복원본으로 DB를 교체한 뒤 소유권·서비스를 확인한다. WAL/SHM 파일과 실행 중인 DB를 단순 복사하지 않는다.
+SQLite online backup → `PRAGMA integrity_check` → gzip → atomic publish. 일간 3개, ISO 주간 2개, 월간 3개가 기본이며 env로 바꿀 수 있다. 기존 `.env`의 7/4/6 같은 명시값은 그대로 따른다. 같은 파일을 일/주/월 generation이 hard link로 공유한다. 각 주/월에는 마지막 성공본을 남긴다. 복원은 기존 파일을 덮어쓰지 않고 새 복사본만 만든다. 운영 복원은 서비스를 정지하고 검증된 복원본으로 DB를 교체한 뒤 소유권·서비스를 확인한다. WAL/SHM 파일과 실행 중인 DB를 단순 복사하지 않는다.
 
 DB 백업은 raw blob을 포함하지 않는다. 압축 raw 디렉터리는 별도 off-host 백업/동기화가 필요하다. 원본 디렉터리가 없어도 normalized 이력은 DB 복원본에서 조회된다. `.env`는 별도 비밀보관소에서 백업한다. 같은 디스크의 백업은 서버/디스크 장애 복구용 off-host 백업을 대체하지 않는다.
 
@@ -188,14 +205,15 @@ DB 백업은 raw blob을 포함하지 않는다. 압축 raw 디렉터리는 별�
 
 일정은 Asia/Seoul 기준 ETF 평일 17:30/19:30, 기관·공시 08:30/18:30, backup/retention 03:10, 저장공간 15분마다다. 거래소 공휴일을 완전히 모델링한 calendar는 포함하지 않으며 공식 응답 기준일과 checksum으로 중복을 방지한다. timer는 Persistent이며 임의 지연이 추가된다. UI의 다음 예정은 이 기본 timer에 대한 예상값이므로 운영자가 timer를 수정하면 코드 설정도 맞춘다.
 
-업데이트: `bash deploy/update.sh`. backup 후 fast-forward merge만 사용하고 `.env`, DB, raw를 보존한다. tracked 로컬 변경이 있으면 종료한다. `git clean`, hard reset, down으로 데이터를 지우지 않는다. 코드 schema가 변경되는 향후 릴리스에는 사전 backup과 명시적 migration을 준비한다. 이 초기 릴리스는 schema v1이다.
+업데이트: `bash deploy/update.sh`. backup 후 fast-forward merge와 v2 초기화를 실행하고 maintenance service를 갱신·daemon-reload한 뒤 web service를 재시작한다. `.service.d` override와 `.env`, DB, raw를 보존한다. tracked 로컬 변경이 있으면 종료한다. `git clean`, hard reset, down으로 데이터를 지우지 않는다. 현재 schema는 v2다. 시작 시 잠금 아래 v1 DB를 online backup → integrity_check → gzip으로 `data/backups/migrations/before-v1-*.sqlite3.gz`에 보관한 뒤 명시적 migration을 한 transaction으로 실행한다. 실패 시 rollback하고 정상 시작을 거부한다. 재실행은 idempotent하며 새 버전 DB에 이전 코드를 적용하면 거부한다. migration 사전 백업은 일반 GFS 보존과 별도이므로 운영자가 검증 후 관리한다. 기존 snapshot·수량값·원본·비밀 설정은 유지한다.
 
 ## 테스트
 
 ```bash
 .venv/bin/python -m pytest -q
+.venv/bin/python -m compileall -q stock16
 node --check stock16/static/app.js
-bash -n deploy/install.sh deploy/update.sh
+for script in deploy/*.sh; do bash -n "$script"; done
 .venv/bin/pip check
 ```
 
@@ -209,6 +227,7 @@ snapshot import/중복/동일 상태 재사용, NEW/EXIT, 수량과 가격 분�
 - [GIC portfolio](https://www.gic.com.sg/our-portfolio/) / [newsroom](https://www.gic.com.sg/newsroom/)
 - [Temasek Review](https://www.temasekreview.com.sg/)
 - [KODEX 공식 상품 목록](https://www.samsungfund.com/etf/product/list.do)
+- [SOL 공식 상품목록](https://www.soletf.co.kr/ko/fund?viewType=E) / [PLUS 검증 상품](https://www.plusetf.co.kr/product/detail?n=006304)
 - [TIGER 공식 홈페이지](https://www.tigeretf.com/)
 - [SEC EDGAR API](https://www.sec.gov/search-filings/edgar-application-programming-interfaces) / [Form 13F FAQ](https://www.sec.gov/rules-regulations/staff-guidance/frequently-asked-questions-about-form-13f)
 - [OpenDART](https://opendart.fss.or.kr/)

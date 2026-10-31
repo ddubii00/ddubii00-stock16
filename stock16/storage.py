@@ -87,8 +87,13 @@ def tree_bytes(path):
     seen=set()
     total=0
     for p in Path(path).rglob('*'):
-        if p.is_file() and not p.is_symlink():
+        try:
+            if not p.is_file() or p.is_symlink():
+                continue
             st=p.stat()
+        except FileNotFoundError:
+            continue
+        if st:
             key=(st.st_dev,st.st_ino)
             if key not in seen:
                 total+=st.st_size
@@ -98,13 +103,32 @@ def tree_bytes(path):
 
 def storage_status(repo):
     usage=shutil.disk_usage(repo.root)
-    percent=round((usage.total-usage.free)/usage.total*100,2)
-    db=sum(p.stat().st_size for p in repo.root.glob('stock16.sqlite3*') if p.is_file())
+    percent=round(usage.used/usage.total*100,2)
+    def size(path):
+        try: return path.stat().st_size
+        except FileNotFoundError: return 0
+    db=size(repo.path)
+    wal=size(Path(str(repo.path)+'-wal'))
+    shm=size(Path(str(repo.path)+'-shm'))
     crossed=[t for t in (70,80,90) if percent>=t]
-    return dict(db_bytes=db,raw_bytes=tree_bytes(repo.root/'raw'),backup_bytes=tree_bytes(repo.root/'backups'),
-                total_bytes=tree_bytes(repo.root),disk_total_bytes=usage.total,disk_free_bytes=usage.free,
+    result=dict(db_bytes=db,wal_bytes=wal,shm_bytes=shm,db_with_wal_bytes=db+wal+shm,
+                raw_bytes=tree_bytes(repo.root/'raw'),backup_bytes=tree_bytes(repo.root/'backups'),
+                logs_bytes=tree_bytes(repo.root/'logs'),cache_bytes=tree_bytes(repo.root/'cache'),
+                total_bytes=tree_bytes(repo.root),disk_total_bytes=usage.total,
+                disk_used_bytes=usage.used,disk_free_bytes=usage.free,
                 disk_used_pct=percent,warning_level=max(crossed,default=0),crossed_thresholds=crossed,
                 thresholds=[70,80,90],measured_at=now())
+    def human(value):
+        for unit in ('B','KiB','MiB','GiB','TiB'):
+            if value<1024 or unit=='TiB': return f'{value:.2f} {unit}'
+            value/=1024
+    result['human_readable']={key:human(value) for key,value in result.items() if key.endswith('_bytes')}
+    counts={}
+    for name in ('portfolio_snapshots','holding_values','holding_sets','source_documents'):
+        counts[name]=repo.rows('SELECT count(*) count FROM '+name)[0]['count']
+    counts['etf_snapshots']=repo.rows("SELECT count(*) count FROM portfolio_snapshots p JOIN funds f ON f.id=p.fund_id WHERE f.kind='ETF'")[0]['count']
+    result['counts']=counts
+    return result
 
 
 def backup(repo,today=None):
@@ -130,11 +154,28 @@ def backup(repo,today=None):
                 temp.unlink(missing_ok=True)
                 os.link(final,temp)
                 os.replace(temp,target)
-            for period,default in (('daily',7),('weekly',4),('monthly',6)):
+            for period,default in (('daily',3),('weekly',2),('monthly',3)):
                 count=max(1,int(os.environ.get('STOCK16_BACKUP_'+period.upper(),str(default))))
                 for old in sorted(root.glob(period+'-*.sqlite3.gz'),reverse=True)[count:]:
                     old.unlink()
     return str(final)
+
+
+def maintain_database(repo,vacuum=False):
+    """Bounded checkpoint/optimizer; VACUUM is opt-in with a free-space guard."""
+    if vacuum:
+        required=repo.path.stat().st_size*2+64*1024*1024
+        if shutil.disk_usage(repo.root).free<required:
+            raise RuntimeError('Not enough free space for manual VACUUM and its backup')
+        backup(repo)
+    with repo.connect() as connection:
+        connection.execute('PRAGMA busy_timeout=1000')
+        connection.execute('PRAGMA analysis_limit=400')
+        connection.execute('PRAGMA optimize')
+        checkpoint=tuple(connection.execute('PRAGMA wal_checkpoint(TRUNCATE)').fetchone())
+        if vacuum:
+            connection.execute('VACUUM')
+    return dict(checkpoint_busy=checkpoint[0],wal_pages=checkpoint[1],checkpointed_pages=checkpoint[2],vacuum=vacuum)
 
 
 def check_storage_alert(repo,send=None):

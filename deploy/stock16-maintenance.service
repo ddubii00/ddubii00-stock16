@@ -8,6 +8,7 @@ WorkingDirectory=/var/www/stock16-7
 EnvironmentFile=/var/www/stock16-7/.env
 ExecStart=/var/www/stock16-7/.venv/bin/python -m stock16 backup
 ExecStart=/var/www/stock16-7/.venv/bin/python -m stock16 retention --apply
+ExecStart=/var/www/stock16-7/.venv/bin/python -m stock16 maintenance
 ExecStart=/var/www/stock16-7/.venv/bin/python -m stock16 check-storage
 UMask=0077
 NoNewPrivileges=true

@@ -1,5 +1,6 @@
 import json
 import sqlite3
+import fcntl
 from contextlib import contextmanager
 from pathlib import Path
 from .settings import ROOT, data_dir
@@ -28,9 +29,17 @@ class Repository:
             conn.close()
 
     def initialize(self):
-        with self.connect() as c:
+        existing = self.path.exists() and self.path.stat().st_size > 0
+        with (self.root / '.migrations.lock').open('a') as lock, self.connect() as c:
+            fcntl.flock(lock, fcntl.LOCK_EX)
+            from .migrations import migrate, LATEST_VERSION
+            if c.execute("SELECT 1 FROM sqlite_master WHERE name='schema_versions'").fetchone():
+                version=c.execute('SELECT max(version) FROM schema_versions').fetchone()[0]
+                if version and version>LATEST_VERSION:
+                    raise RuntimeError('Database version is newer than this application')
             c.execute('PRAGMA journal_mode=WAL')
             c.executescript((Path(__file__).with_name('schema.sql')).read_text())
+            migrate(c, self.root, existing=existing)
             config = json.loads((ROOT / 'config/watchlists.json').read_text())
             for i in config['institutions']:
                 c.execute('INSERT OR IGNORE INTO institutions VALUES(:id,:name,:kind,:country,:scope,:cadence,:source_url)', i)
@@ -40,6 +49,8 @@ class Repository:
                 c.execute('INSERT OR IGNORE INTO funds VALUES(?,?,?,?,?,?)',
                           (f['id'],'kr-etf',f['name'],'ETF',f['code'],f['source_url']))
                 c.execute('INSERT OR IGNORE INTO etf_watchlist VALUES(?,1)', (f['id'],))
+            for f in config.get('funds',[]):
+                c.execute('INSERT OR IGNORE INTO funds VALUES(:id,:institution_id,:name,:kind,:code,:source_url)',f)
             for g in config['gurus']:
                 c.execute('INSERT OR IGNORE INTO institutions VALUES(?,?,?,?,?,?,?)',
                           (g['id'],g['name'],'US Guru','US','13F disclosed long positions','quarterly',g['source_url']))
