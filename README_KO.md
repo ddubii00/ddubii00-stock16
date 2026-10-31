@@ -42,7 +42,7 @@ tests/                    외부 장애와 무관한 fixture 기반 검증
 Python 3.12+와 Git이 필요하다. Node는 앱 실행에 필요 없으며 JS 문법 검사에만 사용한다.
 
 ```bash
-git clone https://github.com/ddubii00/stock16.git
+git clone https://github.com/ddubii00/ddubii00-stock16.git stock16
 cd stock16
 python3 -m venv .venv
 .venv/bin/pip install -r requirements-dev.txt
