@@ -1,0 +1,192 @@
+{
+  "institutions": [
+    {
+      "id": "nps",
+      "name": "국민연금",
+      "kind": "Pension",
+      "country": "KR",
+      "scope": "공개 보유목록 / 공개시차 있음",
+      "cadence": "monthly / annual",
+      "source_url": "https://fund.nps.or.kr/main.do"
+    },
+    {
+      "id": "nbim",
+      "name": "노르웨이 GPFG · NBIM",
+      "kind": "Sovereign wealth fund",
+      "country": "NO",
+      "scope": "공개 주식·채권 목록",
+      "cadence": "half-year",
+      "source_url": "https://www.nbim.no/en/investments/all-investments/"
+    },
+    {
+      "id": "gic",
+      "name": "GIC - Singapore Sovereign Wealth Manager",
+      "kind": "Sovereign wealth manager",
+      "country": "SG",
+      "scope": "공개 범위 제한",
+      "cadence": "annual / events",
+      "source_url": "https://www.gic.com.sg/our-portfolio/"
+    },
+    {
+      "id": "temasek",
+      "name": "Temasek - Singapore State Investment Company",
+      "kind": "State investment company",
+      "country": "SG",
+      "scope": "공개 범위 제한",
+      "cadence": "annual / events",
+      "source_url": "https://www.temasekreview.com.sg/"
+    },
+    {
+      "id": "kr-etf",
+      "name": "국내 ETF",
+      "kind": "ETF",
+      "country": "KR",
+      "scope": "Portfolio Deposit File 구성종목",
+      "cadence": "business daily",
+      "source_url": "https://data.krx.co.kr/"
+    },
+    {
+      "id": "korea-gurus",
+      "name": "Korea Gurus",
+      "kind": "Korea Guru",
+      "country": "KR",
+      "scope": "공식 확인 가능한 이벤트만",
+      "cadence": "events",
+      "source_url": "https://opendart.fss.or.kr/"
+    }
+  ],
+  "etfs": [
+    {
+      "id": "etf-069500",
+      "name": "KODEX 200",
+      "code": "069500",
+      "category": "KOSPI200",
+      "source_url": "https://www.samsungfund.com/etf/product/list.do",
+      "verified_on": "2026-10-31"
+    },
+    {
+      "id": "etf-229200",
+      "name": "KODEX 코스닥 150",
+      "code": "229200",
+      "category": "KOSDAQ150",
+      "source_url": "https://www.samsungfund.com/etf/product/list.do",
+      "verified_on": "2026-10-31"
+    },
+    {
+      "id": "etf-091160",
+      "name": "KODEX 반도체",
+      "code": "091160",
+      "category": "반도체",
+      "source_url": "https://www.samsungfund.com/etf/product/list.do",
+      "verified_on": "2026-10-31"
+    },
+    {
+      "id": "etf-305720",
+      "name": "KODEX 2차전지산업",
+      "code": "305720",
+      "category": "2차전지",
+      "source_url": "https://www.samsungfund.com/etf/product/list.do",
+      "verified_on": "2026-10-31"
+    },
+    {
+      "id": "etf-091180",
+      "name": "KODEX 자동차",
+      "code": "091180",
+      "category": "자동차",
+      "source_url": "https://www.samsungfund.com/etf/product/list.do",
+      "verified_on": "2026-10-31"
+    },
+    {
+      "id": "etf-091170",
+      "name": "KODEX 은행",
+      "code": "091170",
+      "category": "금융",
+      "source_url": "https://www.samsungfund.com/etf/product/list.do",
+      "verified_on": "2026-10-31"
+    },
+    {
+      "id": "etf-244580",
+      "name": "KODEX 바이오",
+      "code": "244580",
+      "category": "바이오",
+      "source_url": "https://www.samsungfund.com/etf/product/list.do",
+      "verified_on": "2026-10-31"
+    },
+    {
+      "id": "etf-379800",
+      "name": "KODEX 미국S&P500",
+      "code": "379800",
+      "category": "미국 S&P500",
+      "source_url": "https://www.samsungfund.com/etf/product/list.do",
+      "verified_on": "2026-10-31"
+    },
+    {
+      "id": "etf-379810",
+      "name": "KODEX 미국나스닥100",
+      "code": "379810",
+      "category": "미국 Nasdaq100",
+      "source_url": "https://www.samsungfund.com/etf/product/list.do",
+      "verified_on": "2026-10-31"
+    },
+    {
+      "id": "etf-390390",
+      "name": "KODEX 미국반도체",
+      "code": "390390",
+      "category": "미국 반도체",
+      "source_url": "https://www.samsungfund.com/etf/product/list.do",
+      "verified_on": "2026-10-31"
+    },
+    {
+      "id": "etf-360750",
+      "name": "TIGER 미국S&P500",
+      "code": "360750",
+      "category": "미국 S&P500",
+      "source_url": "https://www.tigeretf.com/",
+      "verified_on": "2026-10-31"
+    }
+  ],
+  "gurus": [
+    {
+      "id": "berkshire",
+      "name": "Berkshire Hathaway / Warren Buffett",
+      "cik": "0001067983",
+      "source_url": "https://www.sec.gov/edgar/browse/?CIK=0001067983"
+    },
+    {
+      "id": "pershing",
+      "name": "Pershing Square / Bill Ackman",
+      "cik": "0001336528",
+      "source_url": "https://www.sec.gov/edgar/browse/?CIK=0001336528"
+    },
+    {
+      "id": "appaloosa",
+      "name": "Appaloosa / David Tepper",
+      "cik": "0001656456",
+      "source_url": "https://www.sec.gov/edgar/browse/?CIK=0001656456"
+    },
+    {
+      "id": "scion",
+      "name": "Scion Asset Management / Michael Burry",
+      "cik": "0001649339",
+      "source_url": "https://www.sec.gov/edgar/browse/?CIK=0001649339"
+    },
+    {
+      "id": "duquesne",
+      "name": "Duquesne Family Office / Stanley Druckenmiller",
+      "cik": "0001536411",
+      "source_url": "https://www.sec.gov/edgar/browse/?CIK=0001536411"
+    },
+    {
+      "id": "bridgewater",
+      "name": "Bridgewater",
+      "cik": "0001350694",
+      "source_url": "https://www.sec.gov/edgar/browse/?CIK=0001350694"
+    },
+    {
+      "id": "tiger-global",
+      "name": "Tiger Global",
+      "cik": "0001167483",
+      "source_url": "https://www.sec.gov/edgar/browse/?CIK=0001167483"
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "url": "https://www.nbim.no/REPLACE_WITH_VERIFIED_DOWNLOAD.csv",
+  "format": "csv",
+  "encoding": "utf-8-sig",
+  "skip_rows": 0,
+  "delimiter": ",",
+  "metadata": {
+    "fund_id": "nbim", "as_of_date": "2026-06-30",
+    "published_at": "2026-08-12", "currency": "USD",
+    "disclosure_scope": "partial", "data_quality": "Official-derived"
+  },
+  "mapping": {"name": "Company", "isin": "ISIN", "country": "Country", "market_value": "Market Value (USD)", "ownership_pct": "Ownership (%)"}
+}

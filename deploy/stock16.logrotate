@@ -1,0 +1,16 @@
+/var/www/stock16-7/data/logs/*.log {
+    daily
+    maxsize 10M
+    rotate 7
+    missingok
+    notifempty
+    compress
+    delaycompress
+    dateext
+    su stock16 stock16
+    create 0600 stock16 stock16
+    sharedscripts
+    postrotate
+        systemctl kill -s USR1 --kill-who=main webapp-stock16-7.service >/dev/null 2>&1 || true
+    endscript
+}

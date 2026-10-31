@@ -1,0 +1,43 @@
+{
+  "nps": {
+    "datasets": [],
+    "feeds": []
+  },
+  "nbim": {
+    "datasets": [],
+    "feeds": [],
+    "publication_dates": {
+      "2026-06-30": {
+        "published_at": "2026-08-12",
+        "source_url": "https://www.nbim.no/en/news-and-insights/reports/2026/half-year-report-2026/"
+      },
+      "2025-12-31": {
+        "published_at": "2026-01-29",
+        "source_url": "https://www.nbim.no/en/news-and-insights/calendar/"
+      }
+    }
+  },
+  "krx-etf": {
+    "datasets": [],
+    "kodex": {
+      "069500": "2ETF01",
+      "229200": "2ETF54",
+      "091160": "2ETF07",
+      "305720": "2ETFB1",
+      "091180": "2ETF06",
+      "091170": "2ETF08",
+      "244580": "2ETF63",
+      "379800": "2ETFE4",
+      "379810": "2ETFE3",
+      "390390": "2ETFE8"
+    }
+  },
+  "gic": {
+    "datasets": [],
+    "feeds": []
+  },
+  "temasek": {
+    "datasets": [],
+    "feeds": []
+  }
+}

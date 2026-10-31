@@ -1,0 +1,9 @@
+[Unit]
+Description=Daily institutional disclosure checks
+[Timer]
+OnCalendar=*-*-* 08:30:00 Asia/Seoul
+OnCalendar=*-*-* 18:30:00 Asia/Seoul
+Persistent=true
+RandomizedDelaySec=180
+[Install]
+WantedBy=timers.target

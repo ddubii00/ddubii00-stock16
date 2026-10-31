@@ -1,0 +1,18 @@
+[Unit]
+Description=stock16 daily official disclosure checks
+After=network-online.target
+[Service]
+Type=oneshot
+User=stock16
+Group=stock16
+WorkingDirectory=/var/www/stock16-7
+EnvironmentFile=/var/www/stock16-7/.env
+ExecStart=/usr/bin/flock -w 300 /var/www/stock16-7/data/collector.lock /var/www/stock16-7/.venv/bin/python -m stock16 collect --only nps nbim sec-13f gic temasek dart
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/www/stock16-7/data
+TimeoutStartSec=3600
+MemoryMax=768M

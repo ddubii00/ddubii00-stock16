@@ -1,0 +1,25 @@
+[Unit]
+Description=stock16 public portfolio dashboard
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=stock16
+Group=stock16
+WorkingDirectory=/var/www/stock16-7
+EnvironmentFile=/var/www/stock16-7/.env
+ExecStart=/var/www/stock16-7/.venv/bin/gunicorn --bind 127.0.0.1:${STOCK16_PORT} --workers 2 --threads 2 --timeout 90 --error-logfile /var/www/stock16-7/data/logs/gunicorn.log --access-logfile /dev/null wsgi:app
+Restart=on-failure
+RestartSec=5
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/www/stock16-7/data
+MemoryMax=768M
+TasksMax=64
+
+[Install]
+WantedBy=multi-user.target

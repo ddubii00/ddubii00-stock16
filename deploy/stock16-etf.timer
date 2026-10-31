@@ -1,0 +1,10 @@
+[Unit]
+Description=ETF official data checks after Korea market close
+[Timer]
+OnCalendar=Mon..Fri *-*-* 17:30:00 Asia/Seoul
+OnCalendar=Mon..Fri *-*-* 19:30:00 Asia/Seoul
+Persistent=true
+RandomizedDelaySec=120
+Unit=stock16-collect@krx-etf.service
+[Install]
+WantedBy=timers.target

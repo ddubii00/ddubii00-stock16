@@ -1,0 +1,14 @@
+[Unit]
+Description=stock16 storage warning thresholds
+[Service]
+Type=oneshot
+User=stock16
+Group=stock16
+WorkingDirectory=/var/www/stock16-7
+EnvironmentFile=/var/www/stock16-7/.env
+ExecStart=/var/www/stock16-7/.venv/bin/python -m stock16 check-storage
+UMask=0077
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/www/stock16-7/data

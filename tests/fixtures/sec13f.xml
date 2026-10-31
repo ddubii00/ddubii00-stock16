@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- SYNTHETIC TEST FIXTURE. Not real holdings. -->
+<informationTable xmlns="http://www.sec.gov/edgar/document/thirteenf/informationtable">
+ <infoTable><nameOfIssuer>TEST issuer</nameOfIssuer><titleOfClass>COM</titleOfClass><cusip>123456789</cusip><value>1000</value><shrsOrPrnAmt><sshPrnamt>100</sshPrnamt><sshPrnamtType>SH</sshPrnamtType></shrsOrPrnAmt></infoTable>
+ <infoTable><nameOfIssuer>TEST issuer</nameOfIssuer><titleOfClass>COM</titleOfClass><cusip>123456789</cusip><value>500</value><shrsOrPrnAmt><sshPrnamt>50</sshPrnamt><sshPrnamtType>SH</sshPrnamtType></shrsOrPrnAmt></infoTable>
+</informationTable>

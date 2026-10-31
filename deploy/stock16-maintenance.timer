@@ -1,0 +1,8 @@
+[Unit]
+Description=stock16 backup and retention daily
+[Timer]
+OnCalendar=*-*-* 03:10:00 Asia/Seoul
+Persistent=true
+RandomizedDelaySec=300
+[Install]
+WantedBy=timers.target
