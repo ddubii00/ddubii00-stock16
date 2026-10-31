@@ -6,7 +6,7 @@ import pytest
 from stock16.analytics import Analytics
 from stock16.model import rebuild_changes
 from stock16.db import Repository
-from stock16.migrations import migrate
+from stock16.migrations import migrate,LATEST_VERSION
 
 
 def test_consensus_uses_month_not_previous(repo,ingest,stock):
@@ -95,7 +95,7 @@ def test_migration_preserves_and_backs_up_v1(tmp_path):
     path,c=old_database(folder);c.close()
     repo=Repository(folder);repo.initialize()
     assert repo.rows('SELECT name FROM institutions WHERE id=?',('original',))[0]['name']=='Original'
-    assert repo.rows('SELECT max(version) v FROM schema_versions')[0]['v']==2
+    assert repo.rows('SELECT max(version) v FROM schema_versions')[0]['v']==LATEST_VERSION
     backups=list((folder/'backups/migrations').glob('*.gz'))
     assert len(backups)==1
     restored=tmp_path/'before.db';restored.write_bytes(gzip.decompress(backups[0].read_bytes()))

@@ -47,8 +47,13 @@ class Repository:
                           (i['id'],i['id'],i['name'],i['kind'],None,i['source_url']))
             for f in config['etfs']:
                 c.execute('INSERT OR IGNORE INTO funds VALUES(?,?,?,?,?,?)',
-                          (f['id'],'kr-etf',f['name'],'ETF',f['code'],f['source_url']))
-                c.execute('INSERT OR IGNORE INTO etf_watchlist VALUES(?,1)', (f['id'],))
+                          (f['id'],f.get('institution_id','kr-etf'),f['name'],'ETF',f['code'],f['source_url']))
+                c.execute('INSERT OR IGNORE INTO etf_watchlist VALUES(?,?)', (f['id'],int(f.get('enabled',True))))
+                c.execute('''INSERT INTO etf_profiles VALUES(?,?,?,?,?,?,?) ON CONFLICT(fund_id) DO UPDATE SET
+                  style=excluded.style,listing_country=excluded.listing_country,manager=excluded.manager,
+                  strategy=excluded.strategy,evidence_url=excluded.evidence_url,verified_on=excluded.verified_on''',
+                  (f['id'],f.get('style','unknown'),f.get('listing_country','KR'),f.get('manager'),
+                   f.get('strategy',f.get('category')),f.get('evidence_url',f['source_url']),f.get('verified_on')))
             for f in config.get('funds',[]):
                 c.execute('INSERT OR IGNORE INTO funds VALUES(:id,:institution_id,:name,:kind,:code,:source_url)',f)
             for g in config['gurus']:

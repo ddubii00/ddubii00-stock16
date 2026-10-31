@@ -28,13 +28,15 @@ def next_scheduled(name):
             if candidate>current: return candidate.isoformat()
 
 
-def run_collectors(repo,only=None,transport_factory=Transport,config_path=None):
+def run_collectors(repo,only=None,transport_factory=Transport,config_path=None,*,origin='cli',job_id=None,requested_at=None):
+    if origin not in ('scheduler','web','cli','backfill'): raise ValueError('Invalid execution origin')
+    if only is not None and (not only or any(n not in COLLECTORS for n in only)): raise ValueError('Unknown collector')
     config=json.loads((config_path or ROOT/'config/sources.json').read_text())
     results=[]
     for name in only or COLLECTORS:
         if name not in COLLECTORS: raise ValueError('Unknown collector')
-        run_id=repo.execute('INSERT INTO data_fetch_runs(collector,started_at,status,next_scheduled) VALUES(?,?,?,?)',
-          (name,now(),'running',next_scheduled(name)))
+        run_id=repo.execute('INSERT INTO data_fetch_runs(collector,started_at,status,next_scheduled,origin,job_id,requested_at) VALUES(?,?,?,?,?,?,?)',
+          (name,now(),'running',next_scheduled(name),origin,job_id,requested_at or now()))
         try:
             warnings=[]
             collector=None
@@ -84,14 +86,15 @@ def run_collectors(repo,only=None,transport_factory=Transport,config_path=None):
         except Exception as e:
             # Never persist raw exception text: upstream URLs may contain credentials.
             status,message,count='error','수집 실패 · '+type(e).__name__+' · 공식 소스/설정 검토 필요',0
-        repo.execute('UPDATE data_fetch_runs SET finished_at=?,status=?,message=?,new_items=? WHERE id=?',
-          (now(),status,message,count,run_id))
+        details=getattr(collector,'details',{}) if collector else {}
+        repo.execute('UPDATE data_fetch_runs SET finished_at=?,status=?,message=?,new_items=?,details_json=? WHERE id=?',
+          (now(),status,message,count,json.dumps(details),run_id))
         institution={'krx-etf':'kr-etf','sec-13f':None,'dart':'korea-gurus'}.get(name,name)
         if institution:
             source=repo.rows('SELECT source_url FROM institutions WHERE id=?',(institution,))
             record_status(repo,'institution',institution,'collector',name,status,message,
                           source[0]['source_url'] if source else None,next_scheduled(name))
-        results.append(dict(collector=name,status=status,message=message,new_items=count))
+        results.append(dict(collector=name,status=status,message=message,new_items=count,**details))
     return results
 
 
@@ -101,8 +104,8 @@ def run_backfill(repo,name,*,guru=None,from_year=None,transport=None,config_path
     if from_year is not None and not 1994<=from_year<=datetime.now().year:
         raise ValueError('Invalid history year')
     config=json.loads((config_path or ROOT/'config/sources.json').read_text())
-    run_id=repo.execute('INSERT INTO data_fetch_runs(collector,started_at,status) VALUES(?,?,?)',
-                       ('backfill:'+name,now(),'running'))
+    run_id=repo.execute('INSERT INTO data_fetch_runs(collector,started_at,status,origin,requested_at) VALUES(?,?,?,?,?)',
+                       ('backfill:'+name,now(),'running','backfill',now()))
     try:
         client=transport or Transport()
         if name=='nbim':

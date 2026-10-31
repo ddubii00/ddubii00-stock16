@@ -3,6 +3,7 @@ from decimal import Decimal
 from .model import compare, difference
 
 from .periods import PERIODS, select_pair, SUPPORTED_PERIODS
+from .etfs import catalog,in_focus
 
 
 class Analytics:
@@ -55,13 +56,17 @@ class Analytics:
         return rows
 
     # Internal adjacent-disclosure default; HTTP/UI explicitly default to 1m.
-    def consensus(self,period='previous',minimum=2,mode='increased',institutions=None):
+    def consensus(self,period='previous',minimum=2,mode='increased',institutions=None,etf_scope='all'):
         if period not in SUPPORTED_PERIODS:
             raise ValueError('Unsupported comparison period')
         groups={}
+        profiles={r['id']:r for r in catalog(self.repo)}
+        focused=in_focus(self.repo,etf_scope) if etf_scope!='all' else None
         with self.repo.connect() as c:
             funds=c.execute('SELECT * FROM funds').fetchall()
             for fund in funds:
+                if fund['kind']=='ETF' and focused is not None and fund['id'] not in focused:
+                    continue
                 if institutions and fund['institution_id'] not in institutions:
                     continue
                 before,after=select_pair(c,fund['id'],period)
@@ -91,6 +96,8 @@ class Analytics:
                         continue
                     row.update(dict(c.execute('SELECT name,sector,country FROM securities WHERE id=?',(row['security_id'],)).fetchone()))
                     row.update(fund_id=fund['id'],institution_id=fund['institution_id'],kind=fund['kind'],
+                        manager=profiles.get(fund['id'],{}).get('manager'),
+                        listing_country=profiles.get(fund['id'],{}).get('listing_country'),
                         before_as_of_date=before['as_of_date'] if before else None,
                         after_as_of_date=after['as_of_date'],as_of_date=after['as_of_date'],
                         published_at=after['published_at'],fetched_at=after['fetched_at'],source_url=after['source_url'],
@@ -100,6 +107,7 @@ class Analytics:
         return [dict(security_id=sid,name=rs[0]['name'],sector=rs[0]['sector'],country=rs[0]['country'],
                      institution_count=len({r['institution_id'] for r in rs if r['kind']!='ETF'}),
                      etf_count=len({r['fund_id'] for r in rs if r['kind']=='ETF'}),
+                     etf_manager_count=len({r['manager'] for r in rs if r['kind']=='ETF' and r.get('manager')}),
                      fund_count=len({r['fund_id'] for r in rs}),period=period,observations=rs)
                 for sid,rs in sorted(groups.items()) if len({r['fund_id'] for r in rs})>=minimum]
 
@@ -129,11 +137,13 @@ class Analytics:
           WHERE p.id=(SELECT e.id FROM effective_snapshots e WHERE e.fund_id=p.fund_id ORDER BY e.as_of_date DESC LIMIT 1)
           ORDER BY coalesce(p.published_at,p.fetched_at) DESC''')
         today_information=self.today_information(today)
+        focused=in_focus(self.repo)
+        rows=[r for r in rows if r['kind']!='ETF' or r['fund_id'] in focused]
         counts={'today_disclosures':today_information['counts']['published_disclosures']}
         for key,status,etf in [('etf_new','NEW',True),('institution_new','NEW',False),('institution_increased','INCREASED',False),('institution_decreased','DECREASED',False),('institution_exited','EXITED',False)]:
             counts[key]=sum(r['status']==status and (r['kind']=='ETF')==etf for r in rows)
         counts['etf_weight_increased']=sum(r['kind']=='ETF' and r['portfolio_weight_delta_pp'] is not None and Decimal(r['portfolio_weight_delta_pp'])>0 for r in rows)
-        counts['consensus']=len(self.consensus())
+        counts['consensus']=len(self.consensus(etf_scope='active'))
         for row in rows:
             row.update(quantity_delta=row['shares_delta'],quantity_delta_pct=row['shares_delta_pct'])
         important=sorted(rows,key=lambda r:(r['published_at'] or r['fetched_at'],r['status'] in ('NEW','EXITED'),abs(Decimal(r['portfolio_weight_delta_pp'] or '0'))),reverse=True)[:20]
@@ -160,6 +170,8 @@ class Analytics:
         disclosures=[{**r,'published_today':same_day(r['published_at']),'fetched_today':same_day(r['fetched_at'])} for r in disclosures if same_day(r['published_at']) or same_day(r['fetched_at'])]
         snapshots=self.repo.rows("SELECT p.*,f.name fund_name,f.kind FROM portfolio_snapshots p JOIN funds f ON f.id=p.fund_id WHERE p.published_at>=? OR p.fetched_at>=?",(threshold,threshold))
         snapshots=[{**r,'published_today':same_day(r['published_at']),'fetched_today':same_day(r['fetched_at'])} for r in snapshots if same_day(r['published_at']) or same_day(r['fetched_at'])]
+        focused=in_focus(self.repo)
+        snapshots=[r for r in snapshots if r['kind']!='ETF' or r['fund_id'] in focused]
         allocations=self.repo.rows("SELECT institution_id,as_of_date,published_at,min(fetched_at) fetched_at,source_url,checksum FROM asset_allocation_snapshots WHERE published_at>=? OR fetched_at>=? GROUP BY institution_id,as_of_date,published_at,source_url,checksum",(threshold,threshold))
         allocations=[r for r in allocations if same_day(r['published_at']) or same_day(r['fetched_at'])]
         counts=dict(published_disclosures=sum(r['published_today'] for r in disclosures),

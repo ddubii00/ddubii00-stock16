@@ -33,6 +33,9 @@ def main():
     sub=parser.add_subparsers(dest='command',required=True)
     for name in ('setup','init','serve','backup','status','check-storage','maintenance','vacuum'): sub.add_parser(name)
     collect=sub.add_parser('collect');collect.add_argument('--only',nargs='+');collect.add_argument('--config',type=Path)
+    collect.add_argument('--origin',choices=['cli','scheduler'],default='cli')
+    collect.add_argument('--lock-held',action='store_true',help='For systemd external flock only')
+    worker=sub.add_parser('collector-worker');worker.add_argument('--once',action='store_true');worker.add_argument('--poll-interval',type=int,default=3)
     history=sub.add_parser('backfill');history.add_argument('collector',choices=['nbim','sec-13f'])
     history.add_argument('--guru');history.add_argument('--from-year',type=int);history.add_argument('--config',type=Path)
     retention=sub.add_parser('retention');retention.add_argument('--apply',action='store_true')
@@ -53,17 +56,28 @@ def main():
         create_app().run(host='127.0.0.1',port=int(os.environ.get('STOCK16_PORT','3016')),debug=False)
     elif args.command=='collect':
         from .collectors import run_collectors
-        results=run_collectors(repo,args.only,config_path=args.config)
+        from .jobs import collector_lock
+        from contextlib import nullcontext
+        with (nullcontext(True) if args.lock_held else collector_lock(repo)):
+            results=run_collectors(repo,args.only,config_path=args.config,origin=args.origin)
         print(json.dumps(results,ensure_ascii=False,indent=2))
         if any(r['status']=='error' for r in results): raise SystemExit(1)
+    elif args.command=='collector-worker':
+        from .jobs import worker
+        worker(repo,once=args.once,poll_interval=args.poll_interval)
     elif args.command=='backfill':
         from .collectors import run_backfill
-        result=run_backfill(repo,args.collector,guru=args.guru,from_year=args.from_year,config_path=args.config)
+        from .jobs import collector_lock
+        with collector_lock(repo):
+            result=run_backfill(repo,args.collector,guru=args.guru,from_year=args.from_year,config_path=args.config)
         print(json.dumps(result,ensure_ascii=False,indent=2))
         if result['status']=='error': raise SystemExit(1)
     elif args.command in ('maintenance','vacuum'):
         from .storage import maintain_database
-        print(json.dumps(maintain_database(repo,vacuum=args.command=='vacuum'),indent=2))
+        result=maintain_database(repo,vacuum=args.command=='vacuum')
+        from .jobs import cleanup
+        result['jobs_deleted']=cleanup(repo)
+        print(json.dumps(result,indent=2))
     elif args.command=='import':
         from .collectors.base import DatasetCollector
         from .collectors.transport import Transport
@@ -80,6 +94,8 @@ def main():
         from .storage import raw_retention
         result=raw_retention(repo,apply=args.apply);result.pop('candidates')
         if args.apply:
+            from .jobs import cleanup
+            result['jobs_deleted']=cleanup(repo)
             import time
             from datetime import datetime,timedelta,timezone
             repo.execute('DELETE FROM sessions WHERE expires_at<?',(int(time.time()),))

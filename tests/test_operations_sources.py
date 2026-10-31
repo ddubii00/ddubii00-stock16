@@ -89,6 +89,8 @@ def test_old_basis_is_delayed_without_relabelling_fetched_date(repo,ingest,stock
 
 
 def test_today_information_uses_kst_published_and_fetched_not_basis(repo,ingest,stock):
+    repo.execute("UPDATE etf_profiles SET style='active' WHERE fund_id='etf-069500'")
+    repo.execute("UPDATE etf_watchlist SET enabled=1 WHERE fund_id='etf-069500'")
     ingest('2024-01-01',[stock])
     repo.execute("UPDATE portfolio_snapshots SET fetched_at='2026-10-30T15:00:00+00:00'")
     for external,pub,fetched in [('before','2026-10-30T14:59:59+00:00','2026-10-29'),

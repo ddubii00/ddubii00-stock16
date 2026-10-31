@@ -12,3 +12,4 @@ backups/
 *.gz
 *.zip
 .DS_Store
+work/

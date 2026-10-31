@@ -64,32 +64,44 @@ class KRXETFCollector:
         if not 1<=bound<=3660:
             raise ValueError('ETF backfill bound must be 1..3660 calendar days')
         self.warnings=[]
+        self.details=dict(checked_funds=0,new_snapshots=0,revisions=0,skipped=0,errors=0)
         count=0
         adapters=make_adapters(self.repo,self.transport,self.config)
         funds=self.repo.rows('SELECT f.* FROM funds f JOIN etf_watchlist w ON w.fund_id=f.id WHERE w.enabled=1')
         for fund in funds:
+            self.details['checked_funds']+=1
             brand=provider_for(fund['source_url'])
             status='no_new_data'
             added=0
             errors=[]
-            message='신규 데이터 없음 · 영업일 PDF 기준'
+            message='신규 데이터 없음 · 공식 구성종목 기준'
             try:
                 if brand not in adapters:
                     raise NeedsConfiguration('공식 ETF 운용사 또는 다운로드 매핑 설정 필요')
                 adapter=adapters[brand]
                 context=adapter.prepare(fund)
-                for day in planned_days(self.repo,fund['id'],today,bound):
+                latest_only=getattr(adapter,'latest_only',False)
+                days=[today] if latest_only else planned_days(self.repo,fund['id'],today,bound)
+                notices=[]
+                for day in days:
                     try:
-                        result=adapter.fetch_day(fund,day,context)
+                        result=adapter.fetch_latest(fund,context,today) if latest_only else adapter.fetch_day(fund,day,context)
                         if result is None:
+                            self.details['skipped']+=1
                             continue
                         meta=dict(fund_id=fund['id'],as_of_date=result['as_of_date'],
                           published_at=result['published_at'],source_url=result['source_url'],
-                          source_type='krx-etf',currency=self.config.get('currency','KRW'),
+                          source_type=result.get('source_type','krx-etf'),currency=result.get('currency',self.config.get('currency','KRW')),
                           disclosure_scope=result['disclosure_scope'],data_quality='Official-derived',
-                          quantity_type=result['quantity_type'])
+                          quantity_type=result['quantity_type'],deduplicate_state=result.get('deduplicate_state',False))
                         sha=store_document(self.repo,result['body'],result['media_type'],meta)
-                        added+=int(import_snapshot(self.repo,meta,result['rows'],sha)[1])
+                        had=bool(self.repo.rows('SELECT id FROM effective_snapshots WHERE fund_id=? AND as_of_date=?',(fund['id'],meta['as_of_date'])))
+                        created=int(import_snapshot(self.repo,meta,result['rows'],sha)[1])
+                        added+=created
+                        self.details['revisions' if had else 'new_snapshots']+=created
+                        self.details['skipped']+=int(not created)
+                        self.details['latest_as_of_date']=max(self.details.get('latest_as_of_date',''),meta['as_of_date'])
+                        if result.get('notice'): notices.append(result['notice'])
                     except Exception as error:
                         errors.append(day.isoformat()+':'+type(error).__name__)
                 if errors:
@@ -97,11 +109,15 @@ class KRXETFCollector:
                     message='일부 영업일 수집 실패 · '+'; '.join(errors[:5])
                 elif added:
                     status='success'
-                    message='PDF snapshot '+str(added)+'건 저장'
+                    message='구성종목 snapshot '+str(added)+'건 저장'
+                if notices:
+                    status='partial'
+                    message+=' · '+'; '.join(sorted(set(notices)))
             except NeedsConfiguration as error:
                 status,message='needs_configuration',str(error)
             except Exception as error:
                 status,message='error','공식 ETF 소스 확인 필요 · '+type(error).__name__
+            self.details['errors']+=len(errors) or int(status in ('error','needs_configuration'))
             count+=added
             record_status(self.repo,'fund',fund['id'],'holdings','krx-etf',status,message,
                           fund['source_url'],next_scheduled('krx-etf'))

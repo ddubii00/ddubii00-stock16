@@ -62,5 +62,5 @@ def decorate_entities(repo,rows,entity_type):
               next_scheduled=next((c['next_scheduled'] for c in components if c['next_scheduled']),run['next_scheduled'] if run else None),
               data_source=latest['source_url'] if latest else row.get('source_url'),
               status=status,status_label=STATUS_LABELS.get(status,status),components=components,
-              freshness_note=hints.get(collector,'공식 공개자료 기준'),basis_age_days=age)
+              freshness_note=('미국 공식 최신 일별 자료 · 과거 날짜 소급 생성 없음 · ARK 상위 10개 부분 관측' if row.get('listing_country')=='US' or identifier=='us-etf' else hints.get(collector,'공식 공개자료 기준')),basis_age_days=age)
     return rows

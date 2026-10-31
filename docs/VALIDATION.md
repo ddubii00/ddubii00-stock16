@@ -39,3 +39,13 @@
 ## 검증 한계
 
 Oracle 실서버 접속, Ubuntu ARM64 실행, 운영 systemd/nginx/TLS 배포는 수행하지 않았다. 배포 스크립트와 service 설정을 갱신했고 shell 문법을 검사했다. GitHub Actions 결과는 해당 commit의 원격 실행 결과로 별도 확인한다. NPS 상세 파일·일부 운용사·Temasek은 검증한 공식 mapping이 필요하며 모든 기관의 상세 포트폴리오 자동수집이 무설정으로 완성됐다는 의미가 아니다.
+
+## 액티브 ETF 및 웹 수집 queue 추가 검증
+
+- 전체 pytest **156 passed** (기존 105개 유지, 신규 51개). 인증/CSRF, 입력 allowlist·추가 필드 거절, HTTP inline 실행 없음, queued/running 중복·동시 요청, 다른 수집기 대기, all 실패 격리, worker 오류 비밀값 제외, 설정 필요, 자동 flock 충돌, UTC/origin, 중단 복구, metadata만 정리, unit 설정을 검증했다.
+- 한국 TIME 4개·KoAct 3개, 미국 ARK 4개·JPMorgan 2개의 실제 공식 자료 확인. live smoke test만 탐색 범위를 7일로 제한했으며 코드 기본 30일은 유지했다. 한국 35개(5개 기준일 × 7개) 및 미국 6개, 총 **41개 신규 snapshot**을 저장했다. 미국은 실제 2026-10-30 공개 기준일만 저장했다.
+- 최초 JAVA의 공식 음수 현금 비중 -0.02%를 확인하고 fund_reported_quantity의 명시적 CURRENCIES 항목만 허용했다. 주식 음수 수량/비중·범위 초과 거절은 별도 회귀 테스트로 유지했다. 수정 뒤 전체 13개 재수집은 오류 0개, 정정 0개, 이미 저장된 40개는 skip, JAVA 1개만 신규였다. ARK 상위 10개 자료는 의도적으로 partial이며 미식별 비상장 항목을 임의 종목으로 만들지 않았다. 마지막 웹 재실행은 신규 0, 정정 0, skip 41, 오류 0으로 동일 자료의 중복 방지를 확인했다.
+- 브라우저 실제 ETF 버튼 클릭 → queued 즉시 반환 → 별도 collector-worker CLI 실행 → running → partial 완료 → 2.5초 polling으로 버튼 재활성화와 data-status/실행 이력 갱신 확인. SEC 버튼도 needs_configuration과 STOCK16_SEC_USER_AGENT 설정 안내까지 검증했다. 비밀값은 브라우저에 표시하지 않았다.
+- 1440px 및 모바일 390px 화면 확인. 모바일 document.scrollWidth=390으로 가로 넘침 없고 모든 수집 버튼이 viewport 안에 배치됐다. 상세 시각·메시지는 펼침 영역으로 제공한다.
+- 기존 v2 사전 migration gzip backup의 원본 행과 현재 v4 비교: snapshot 20, holding value 18,935, holding set 20, holding member 18,937, security/identifier 각 10,379, source document/observation 각 36, allocation 25, disclosure 12개 원본 행이 모두 그대로 포함됐다. integrity_check/foreign_key_check 정상. .env·DB·raw 삭제/초기화 없음. 이전 패시브 기본 ETF는 추적만 중지하고 이력 보존.
+- schema v4 신규 queue·origin migration, install.sh stock16 계정 init, update.sh 전체 service/timer 설치·daemon-reload·worker enable/restart 반영. ETF/기관 timer 파일은 수정하지 않았다. macOS에서는 worker unit INI/필수 directive/ExecStart 계약을 검사했고 실제 Linux systemd-analyze verify는 GitHub Actions에 추가했다. Oracle 서버 배포 자체는 이 로컬 작업에서 실행하지 않았다.

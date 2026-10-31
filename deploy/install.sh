@@ -26,10 +26,10 @@ mkdir -p data/logs
 sudo chown -R stock16:stock16 data
 sudo chown root:stock16 .env
 sudo chmod 640 .env
-.venv/bin/python -m stock16 init
+sudo -u stock16 .venv/bin/python -m stock16 init
 sudo chown -R stock16:stock16 data
 sudo install -m 644 deploy/*.service deploy/*.timer /etc/systemd/system/
 sudo install -m 644 deploy/stock16.logrotate /etc/logrotate.d/stock16
 sudo systemctl daemon-reload
-sudo systemctl enable --now webapp-stock16-7.service stock16-etf.timer stock16-daily.timer stock16-maintenance.timer stock16-disk.timer
+sudo systemctl enable --now stock16-collector-worker.service webapp-stock16-7.service stock16-etf.timer stock16-daily.timer stock16-maintenance.timer stock16-disk.timer
 echo 'Install complete. Add nginx-stock16.conf to the existing HTTPS host, then nginx -t and reload.'

@@ -13,6 +13,10 @@ PROVIDERS = {
     'ace': ('www.aceetf.co.kr','aceetf.co.kr'),
     'sol': ('www.soletf.co.kr','soletf.co.kr'),
     'plus': ('www.plusetf.co.kr','plusetf.co.kr'),
+    'time': ('www.timeetf.co.kr','timeetf.co.kr'),
+    'koact': ('www.samsungactive.co.kr',),
+    'ark': ('www.ark-funds.com','ark-funds.com','assets.ark-funds.com'),
+    'jpmorgan': ('am.jpmorgan.com',),
 }
 
 
@@ -226,7 +230,9 @@ class PlusAdapter:
 
 
 def make_adapters(repo,transport,config):
+    from .active_etf import TimeAdapter,KoactAdapter,ArkAdapter,JpmorganAdapter
     return {'kodex':KodexAdapter(repo,transport,config),'sol':SolAdapter(repo,transport,config),
-        'plus':PlusAdapter(repo,transport,config),**{
+        'plus':PlusAdapter(repo,transport,config),'time':TimeAdapter(repo,transport,config),
+        'koact':KoactAdapter(repo,transport,config),'ark':ArkAdapter(repo,transport,config),'jpmorgan':JpmorganAdapter(repo,transport,config),**{
         name:ReviewedManagerAdapter(repo,transport,config,name)
         for name in ('tiger','rise','ace')}}

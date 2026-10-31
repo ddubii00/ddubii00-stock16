@@ -53,6 +53,15 @@
       "scope": "공식 확인 가능한 이벤트만",
       "cadence": "events",
       "source_url": "https://opendart.fss.or.kr/"
+    },
+    {
+      "id": "us-etf",
+      "name": "미국 액티브 ETF",
+      "kind": "ETF",
+      "country": "US",
+      "scope": "공식 일별 보유자료 · ARK는 상위 10개 부분공개",
+      "cadence": "business daily",
+      "source_url": "https://am.jpmorgan.com/"
     }
   ],
   "etfs": [
@@ -62,7 +71,11 @@
       "code": "069500",
       "category": "KOSPI200",
       "source_url": "https://www.samsungfund.com/etf/product/list.do",
-      "verified_on": "2026-10-31"
+      "verified_on": "2026-10-31",
+      "enabled": false,
+      "style": "passive",
+      "listing_country": "KR",
+      "manager": "삼성자산운용"
     },
     {
       "id": "etf-229200",
@@ -70,7 +83,11 @@
       "code": "229200",
       "category": "KOSDAQ150",
       "source_url": "https://www.samsungfund.com/etf/product/list.do",
-      "verified_on": "2026-10-31"
+      "verified_on": "2026-10-31",
+      "enabled": false,
+      "style": "passive",
+      "listing_country": "KR",
+      "manager": "삼성자산운용"
     },
     {
       "id": "etf-091160",
@@ -78,7 +95,11 @@
       "code": "091160",
       "category": "반도체",
       "source_url": "https://www.samsungfund.com/etf/product/list.do",
-      "verified_on": "2026-10-31"
+      "verified_on": "2026-10-31",
+      "enabled": false,
+      "style": "passive",
+      "listing_country": "KR",
+      "manager": "삼성자산운용"
     },
     {
       "id": "etf-305720",
@@ -86,7 +107,11 @@
       "code": "305720",
       "category": "2차전지",
       "source_url": "https://www.samsungfund.com/etf/product/list.do",
-      "verified_on": "2026-10-31"
+      "verified_on": "2026-10-31",
+      "enabled": false,
+      "style": "passive",
+      "listing_country": "KR",
+      "manager": "삼성자산운용"
     },
     {
       "id": "etf-091180",
@@ -94,7 +119,11 @@
       "code": "091180",
       "category": "자동차",
       "source_url": "https://www.samsungfund.com/etf/product/list.do",
-      "verified_on": "2026-10-31"
+      "verified_on": "2026-10-31",
+      "enabled": false,
+      "style": "passive",
+      "listing_country": "KR",
+      "manager": "삼성자산운용"
     },
     {
       "id": "etf-091170",
@@ -102,7 +131,11 @@
       "code": "091170",
       "category": "금융",
       "source_url": "https://www.samsungfund.com/etf/product/list.do",
-      "verified_on": "2026-10-31"
+      "verified_on": "2026-10-31",
+      "enabled": false,
+      "style": "passive",
+      "listing_country": "KR",
+      "manager": "삼성자산운용"
     },
     {
       "id": "etf-244580",
@@ -110,7 +143,11 @@
       "code": "244580",
       "category": "바이오",
       "source_url": "https://www.samsungfund.com/etf/product/list.do",
-      "verified_on": "2026-10-31"
+      "verified_on": "2026-10-31",
+      "enabled": false,
+      "style": "passive",
+      "listing_country": "KR",
+      "manager": "삼성자산운용"
     },
     {
       "id": "etf-379800",
@@ -118,7 +155,11 @@
       "code": "379800",
       "category": "미국 S&P500",
       "source_url": "https://www.samsungfund.com/etf/product/list.do",
-      "verified_on": "2026-10-31"
+      "verified_on": "2026-10-31",
+      "enabled": false,
+      "style": "passive",
+      "listing_country": "KR",
+      "manager": "삼성자산운용"
     },
     {
       "id": "etf-379810",
@@ -126,7 +167,11 @@
       "code": "379810",
       "category": "미국 Nasdaq100",
       "source_url": "https://www.samsungfund.com/etf/product/list.do",
-      "verified_on": "2026-10-31"
+      "verified_on": "2026-10-31",
+      "enabled": false,
+      "style": "passive",
+      "listing_country": "KR",
+      "manager": "삼성자산운용"
     },
     {
       "id": "etf-390390",
@@ -134,7 +179,11 @@
       "code": "390390",
       "category": "미국 반도체",
       "source_url": "https://www.samsungfund.com/etf/product/list.do",
-      "verified_on": "2026-10-31"
+      "verified_on": "2026-10-31",
+      "enabled": false,
+      "style": "passive",
+      "listing_country": "KR",
+      "manager": "삼성자산운용"
     },
     {
       "id": "etf-360750",
@@ -142,7 +191,11 @@
       "code": "360750",
       "category": "미국 S&P500",
       "source_url": "https://www.tigeretf.com/",
-      "verified_on": "2026-10-31"
+      "verified_on": "2026-10-31",
+      "enabled": false,
+      "style": "passive",
+      "listing_country": "KR",
+      "manager": "미래에셋자산운용"
     },
     {
       "id": "etf-466920",
@@ -150,7 +203,11 @@
       "code": "466920",
       "category": "조선",
       "source_url": "https://www.soletf.co.kr/ko/fund/etf/211028",
-      "verified_on": "2026-10-31"
+      "verified_on": "2026-10-31",
+      "enabled": false,
+      "style": "passive",
+      "listing_country": "KR",
+      "manager": "신한자산운용"
     },
     {
       "id": "etf-266550",
@@ -158,7 +215,186 @@
       "code": "266550",
       "category": "중형주",
       "source_url": "https://www.plusetf.co.kr/product/detail?n=006304",
-      "verified_on": "2026-10-31"
+      "verified_on": "2026-10-31",
+      "enabled": false,
+      "style": "passive",
+      "listing_country": "KR",
+      "manager": "한화자산운용"
+    },
+    {
+      "id": "etf-385720",
+      "code": "385720",
+      "name": "TIME 코스피액티브",
+      "source_url": "https://www.timeetf.co.kr/m11_view.php?idx=11",
+      "evidence_url": "https://www.timeetf.co.kr/m11_view.php?idx=11",
+      "verified_on": "2026-10-31",
+      "enabled": true,
+      "style": "active",
+      "listing_country": "KR",
+      "manager": "타임폴리오자산운용",
+      "strategy": "한국 대형주 종목선정"
+    },
+    {
+      "id": "etf-495060",
+      "code": "495060",
+      "name": "TIME 코리아밸류업액티브",
+      "source_url": "https://www.timeetf.co.kr/m11_view.php?idx=15",
+      "evidence_url": "https://www.timeetf.co.kr/m11_view.php?idx=15",
+      "verified_on": "2026-10-31",
+      "enabled": true,
+      "style": "active",
+      "listing_country": "KR",
+      "manager": "타임폴리오자산운용",
+      "strategy": "한국 기업가치 개선"
+    },
+    {
+      "id": "etf-0162Y0",
+      "code": "0162Y0",
+      "name": "TIME 코스닥액티브",
+      "source_url": "https://www.timeetf.co.kr/m11_view.php?idx=24",
+      "evidence_url": "https://www.timeetf.co.kr/m11_view.php?idx=24",
+      "verified_on": "2026-10-31",
+      "enabled": true,
+      "style": "active",
+      "listing_country": "KR",
+      "manager": "타임폴리오자산운용",
+      "strategy": "한국 성장주 종목선정"
+    },
+    {
+      "id": "etf-456600",
+      "code": "456600",
+      "name": "TIME 글로벌AI인공지능액티브",
+      "source_url": "https://www.timeetf.co.kr/m11_view.php?idx=6",
+      "evidence_url": "https://www.timeetf.co.kr/m11_view.php?idx=6",
+      "verified_on": "2026-10-31",
+      "enabled": true,
+      "style": "active",
+      "listing_country": "KR",
+      "manager": "타임폴리오자산운용",
+      "strategy": "글로벌 AI"
+    },
+    {
+      "id": "etf-495230",
+      "code": "495230",
+      "name": "KoAct 코리아밸류업액티브",
+      "source_url": "https://www.samsungactive.co.kr/etf/product/view.do?id=2ETFP3",
+      "evidence_url": "https://www.samsungactive.co.kr/etf/product/view.do?id=2ETFP3",
+      "verified_on": "2026-10-31",
+      "enabled": true,
+      "style": "active",
+      "listing_country": "KR",
+      "manager": "삼성액티브자산운용",
+      "strategy": "한국 기업가치 개선"
+    },
+    {
+      "id": "etf-0015B0",
+      "code": "0015B0",
+      "name": "KoAct 미국나스닥성장기업액티브",
+      "source_url": "https://www.samsungactive.co.kr/etf/product/view.do?id=2ETFQ1",
+      "evidence_url": "https://www.samsungactive.co.kr/etf/product/view.do?id=2ETFQ1",
+      "verified_on": "2026-10-31",
+      "enabled": true,
+      "style": "active",
+      "listing_country": "KR",
+      "manager": "삼성액티브자산운용",
+      "strategy": "미국 성장기업"
+    },
+    {
+      "id": "etf-475070",
+      "code": "475070",
+      "name": "KoAct 글로벌친환경전력인프라액티브",
+      "source_url": "https://www.samsungactive.co.kr/etf/product/view.do?id=2ETFL9",
+      "evidence_url": "https://www.samsungactive.co.kr/etf/product/view.do?id=2ETFL9",
+      "verified_on": "2026-10-31",
+      "enabled": true,
+      "style": "active",
+      "listing_country": "KR",
+      "manager": "삼성액티브자산운용",
+      "strategy": "글로벌 전력 인프라"
+    },
+    {
+      "id": "etf-arkk",
+      "institution_id": "us-etf",
+      "code": "ARKK",
+      "name": "ARK Innovation ETF",
+      "source_url": "https://www.ark-funds.com/funds/arkk",
+      "evidence_url": "https://www.ark-funds.com/funds/arkk",
+      "verified_on": "2026-10-31",
+      "enabled": true,
+      "style": "active",
+      "listing_country": "US",
+      "manager": "ARK Investment Management",
+      "strategy": "혁신 기술"
+    },
+    {
+      "id": "etf-arkq",
+      "institution_id": "us-etf",
+      "code": "ARKQ",
+      "name": "ARK Autonomous Technology & Robotics ETF",
+      "source_url": "https://www.ark-funds.com/funds/arkq",
+      "evidence_url": "https://www.ark-funds.com/funds/arkq",
+      "verified_on": "2026-10-31",
+      "enabled": true,
+      "style": "active",
+      "listing_country": "US",
+      "manager": "ARK Investment Management",
+      "strategy": "자율주행 · 로보틱스"
+    },
+    {
+      "id": "etf-arkw",
+      "institution_id": "us-etf",
+      "code": "ARKW",
+      "name": "ARK Next Generation Technology ETF",
+      "source_url": "https://www.ark-funds.com/funds/arkw",
+      "evidence_url": "https://www.ark-funds.com/funds/arkw",
+      "verified_on": "2026-10-31",
+      "enabled": true,
+      "style": "active",
+      "listing_country": "US",
+      "manager": "ARK Investment Management",
+      "strategy": "차세대 기술"
+    },
+    {
+      "id": "etf-arkg",
+      "institution_id": "us-etf",
+      "code": "ARKG",
+      "name": "ARK Genomic Revolution ETF",
+      "source_url": "https://www.ark-funds.com/funds/arkg",
+      "evidence_url": "https://www.ark-funds.com/funds/arkg",
+      "verified_on": "2026-10-31",
+      "enabled": true,
+      "style": "active",
+      "listing_country": "US",
+      "manager": "ARK Investment Management",
+      "strategy": "유전체 혁신"
+    },
+    {
+      "id": "etf-jgro",
+      "institution_id": "us-etf",
+      "code": "JGRO",
+      "name": "JPMorgan Active Growth ETF",
+      "source_url": "https://am.jpmorgan.com/us/en/asset-management/adv/products/jpmorgan-active-growth-etf-etf-shares-46654q609",
+      "evidence_url": "https://am.jpmorgan.com/us/en/asset-management/adv/products/jpmorgan-active-growth-etf-etf-shares-46654q609",
+      "verified_on": "2026-10-31",
+      "enabled": true,
+      "style": "active",
+      "listing_country": "US",
+      "manager": "J.P. Morgan Asset Management",
+      "strategy": "미국 성장주 종목선정"
+    },
+    {
+      "id": "etf-java",
+      "institution_id": "us-etf",
+      "code": "JAVA",
+      "name": "JPMorgan Active Value ETF",
+      "source_url": "https://am.jpmorgan.com/us/en/asset-management/adv/products/jpmorgan-active-value-etf-etf-shares-46641q167",
+      "evidence_url": "https://am.jpmorgan.com/us/en/asset-management/adv/products/jpmorgan-active-value-etf-etf-shares-46641q167",
+      "verified_on": "2026-10-31",
+      "enabled": true,
+      "style": "active",
+      "listing_country": "US",
+      "manager": "J.P. Morgan Asset Management",
+      "strategy": "미국 가치주 종목선정"
     }
   ],
   "gurus": [

@@ -1,6 +1,6 @@
 # stock16 · 기관 포트폴리오 변화 분석
 
-국민연금, 노르웨이 GPFG/NBIM, GIC, Temasek, 국내 ETF, 미국 13F 및 한국 공식 공시의 공개시점별 변화를 비교하는 한국어 대시보드다. 기준일·공시일·수집일을 구분하며, 공개되지 않은 숫자를 만들지 않는다. 현재 보유나 투자추천을 의미하지 않는다.
+국민연금, 노르웨이 GPFG/NBIM, GIC, Temasek, 한국·미국 액티브 ETF, 미국 13F 및 한국 공식 공시의 공개시점별 변화를 비교하는 한국어 대시보드다. 기준일·공시일·수집일을 구분하며, 공개되지 않은 숫자를 만들지 않는다. 현재 보유나 투자추천을 의미하지 않는다.
 
 ## 구현과 실제 수집 범위
 
@@ -8,7 +8,7 @@
 |---|---|---|
 | NPS | 공식 홈페이지의 최근 월별 자산배분·총액과 기금공시 수집 | 국내/해외·대량보유 목록은 검증한 공식 파일 mapping 및 discovery rule 등록 시 import. 기본 상세 파일 미설정은 `공식 파일 수동 등록 필요`로 표시. 연간 세부내역, 월간 배분, 분기 대량보유의 공개주기가 다름 |
 | NBIM | 공식 API로 최근 두 반기/연말 주식·채권 **issuer aggregate** 및 자산배분, 공식 CSV 원본 수집·diff | 공식 source-local ID는 검토 상태. 개별 bond issue/수량이 아닌 issuer별 금액. 미공개 shares는 NULL. 명시적 `backfill nbim`으로 과거 이력 수집. 발표일 미검증 자료는 검토 대기열에 보관하고 분석에서 제외 |
-| 국내 ETF | KODEX·SOL 공식 카탈로그로 코드·상품번호 대조, PLUS 공식 상세페이지 거래소 코드 대조 후 날짜별 full PDF JSON 수집. 기본 KODEX 10개 + SOL/PLUS 각 1개 | 최근 최대 30 calendar days 누락 평일 backfill, 최근 7일 정정 재확인. TIGER·RISE·ACE는 검증한 공식 다운로드 mapping 필요. 미제공 발표일은 NULL |
+| 액티브 ETF | 한국 TIME 4개·KoAct 3개, 미국 JPMorgan JGRO/JAVA 및 ARKK/Q/W/G. 한국 전체 날짜별 PDF/XLSX, JPMorgan 전체 최신 일별 JSON, ARK 공식 상위 10개 부분자료 | 한국 최대 30일 누락 backfill, 최근 7일 정정 확인. 미국은 최신 공식 기준일만 관측하며 과거 일자를 생성하지 않음. ARK 전체 CSV 자동 접근 제한은 우회하지 않으며 수동 공식자료 import 필요 |
 | SEC 13F | 공식 submissions → filing cover/index → informationTable XML → 정규화·diff | 운영자 이름·이메일을 담은 `STOCK16_SEC_USER_AGENT` 설정 필요. 일상 수집은 recent submissions, 명시적 `backfill sec-13f`에서 `filings.files` 과거 목록 탐색. 추가보고 amendment는 자동 병합하지 않고 검토 |
 | GIC | 공식 newsroom의 최신 기사 최대 8개를 날짜·원문 발췌와 함께 수집 | 전체 종목 미공개. 자산군·지역 배분은 검증한 연차자료의 dataset mapping으로 입력 |
 | Temasek | 독립 기관·연간 배분/공개투자 dataset·공식 RSS 및 검증한 파일 discovery adapter | 검증 환경에서 공식 사이트 HTTP 403. 우회하지 않으며 기본 상태 `needs_configuration`. 검증한 공식 파일을 수동 import하거나 허용된 다운로드/RSS 등록 |
@@ -25,7 +25,7 @@ stock16/
   schema.sql              정규화 schema / 불변 snapshot / source provenance
   db.py                   Repository 경계
   model.py                Decimal / 식별자 / import / corporate action / diff
-  migrations.py           사전 backup / v1 → v2 원자적 upgrade
+  migrations.py           사전 backup / v1 → v4 원자적 upgrade
   periods.py, freshness.py 실제 비교기간 / 기관·펀드별 수집 상태
   analytics.py            기간 비교 / 교집합 / 자산배분 / 종목 분석
   auth.py, web.py          인증 / CSRF / API / UI
@@ -71,6 +71,7 @@ STOCK16_SECURE_COOKIE=0 .venv/bin/python -m stock16 serve
 | `STOCK16_SECURE_COOKIE` | 1. 로컬 loopback HTTP만 0 |
 | `STOCK16_SEC_USER_AGENT` | SEC 정책에 맞는 실제 운영자 식별 이름·이메일 |
 | `OPENDART_API_KEY` | OpenDART key. 로그/Git에 남기지 않음 |
+| `STOCK16_JOB_RETENTION_DAYS` | 90. 완료된 웹 작업 metadata만 정리 (1~3650일) |
 | `STOCK16_RAW_MONTHS` | 12. ETF 전체 원본 유지 개월 |
 | `STOCK16_ETF_BACKFILL_DAYS` | 30 calendar days. 1~3660 범위, 최초 수집·중단 복구 탐색 상한 |
 | `STOCK16_ETF_REVISION_DAYS` | 7 calendar days. 최근 정정 재확인 (backfill 상한 이내) |
@@ -95,7 +96,7 @@ STOCK16_SECURE_COOKIE=0 .venv/bin/python -m stock16 serve
 
 ### 검증된 공식 파일 import
 
-`config/dataset.example.json`을 복사해 URL·기준일·공시일·단위·공개범위와 **실제 파일 컬럼**을 맞춘다. 예시 URL과 날짜는 자동수집용 기본값이 아니다. 같은 mapping 객체를 config/sources.json 기관별 datasets 배열에 넣으면 scheduler가 다운로드한다. 특정 날짜 파일을 가리키는 mapping은 새로운 공개파일이 나올 때 갱신한다. KODEX·SOL·PLUS 기본 adapter는 날짜를 직접 탐색한다.
+`config/dataset.example.json`을 복사해 URL·기준일·공시일·단위·공개범위와 **실제 파일 컬럼**을 맞춘다. 예시 URL과 날짜는 자동수집용 기본값이 아니다. 같은 mapping 객체를 config/sources.json 기관별 datasets 배열에 넣으면 scheduler가 다운로드한다. 특정 날짜 파일을 가리키는 mapping은 새로운 공개파일이 나올 때 갱신한다. TIME·KoAct·KODEX·SOL·PLUS adapter는 날짜를 직접 탐색한다. 미국 JPMorgan·ARK는 최신 공개 기준일만 수집한다.
 
 명시적인 역사 수집은 다음과 같다. 기본 일상 수집이 전체 역사를 반복하지 않는다.
 
@@ -205,7 +206,7 @@ DB 백업은 raw blob을 포함하지 않는다. 압축 raw 디렉터리는 별�
 
 일정은 Asia/Seoul 기준 ETF 평일 17:30/19:30, 기관·공시 08:30/18:30, backup/retention 03:10, 저장공간 15분마다다. 거래소 공휴일을 완전히 모델링한 calendar는 포함하지 않으며 공식 응답 기준일과 checksum으로 중복을 방지한다. timer는 Persistent이며 임의 지연이 추가된다. UI의 다음 예정은 이 기본 timer에 대한 예상값이므로 운영자가 timer를 수정하면 코드 설정도 맞춘다.
 
-업데이트: `bash deploy/update.sh`. backup 후 fast-forward merge와 v2 초기화를 실행하고 maintenance service를 갱신·daemon-reload한 뒤 web service를 재시작한다. `.service.d` override와 `.env`, DB, raw를 보존한다. tracked 로컬 변경이 있으면 종료한다. `git clean`, hard reset, down으로 데이터를 지우지 않는다. 현재 schema는 v2다. 시작 시 잠금 아래 v1 DB를 online backup → integrity_check → gzip으로 `data/backups/migrations/before-v1-*.sqlite3.gz`에 보관한 뒤 명시적 migration을 한 transaction으로 실행한다. 실패 시 rollback하고 정상 시작을 거부한다. 재실행은 idempotent하며 새 버전 DB에 이전 코드를 적용하면 거부한다. migration 사전 백업은 일반 GFS 보존과 별도이므로 운영자가 검증 후 관리한다. 기존 snapshot·수량값·원본·비밀 설정은 유지한다.
+업데이트: `bash deploy/update.sh`. backup 후 fast-forward merge와 v4 migration을 stock16 계정으로 실행하고 모든 배포 service/timer를 설치·daemon-reload한 뒤 worker를 enable/start하고 worker/web을 재시작한다. 기존 timer 일정은 유지한다. `.service.d` override와 `.env`, DB, raw를 보존한다. tracked 로컬 변경이 있으면 종료한다. `git clean`, hard reset, down으로 데이터를 지우지 않는다. 현재 schema는 v4다 (v3 ETF 분류, v4 수집 queue와 실행 origin). 시작 시 잠금 아래 기존 DB를 online backup → integrity_check → gzip으로 `data/backups/migrations/before-v<이전버전>-*.sqlite3.gz`에 보관한 뒤 명시적 migration을 한 transaction으로 실행한다. 실패 시 rollback하고 정상 시작을 거부한다. 재실행은 idempotent하며 새 버전 DB에 이전 코드를 적용하면 거부한다. migration 사전 백업은 일반 GFS 보존과 별도이므로 운영자가 검증 후 관리한다. 기존 snapshot·수량값·원본·비밀 설정은 유지한다.
 
 ## 테스트
 
@@ -231,3 +232,42 @@ snapshot import/중복/동일 상태 재사용, NEW/EXIT, 수량과 가격 분�
 - [TIGER 공식 홈페이지](https://www.tigeretf.com/)
 - [SEC EDGAR API](https://www.sec.gov/search-filings/edgar-application-programming-interfaces) / [Form 13F FAQ](https://www.sec.gov/rules-regulations/staff-guidance/frequently-asked-questions-about-form-13f)
 - [OpenDART](https://opendart.fss.or.kr/)
+
+
+### 액티브 ETF 중심 추적
+
+기본 ETF 화면·dashboard·Consensus·변화 순위는 활성 액티브 ETF를 사용한다. 한국 상장 TIME 코스피/코스닥/코리아밸류업/글로벌AI와 KoAct 코리아밸류업/미국나스닥성장기업/글로벌친환경전력인프라, 미국 상장 ARKK·ARKQ·ARKW·ARKG·JGRO·JAVA를 기본 추적한다. 상장국은 투자대상 국가와 다르다. 운용사·전략·분류 근거는 `etf_profiles`에 별도로 저장한다. 이 목록은 추적 범위이며 투자추천이나 수익률 순위가 아니다.
+
+기존 기본 패시브 13개는 migration에서 한 번 추적 중지하지만 snapshot·변화·압축 원본을 삭제하지 않는다. ETF 화면의 전체/패시브 과거 자료, `GET /api/etfs?scope=all`, `scope=passive`로 조회하며 watchlist에서 재활성화할 수 있다. 사용자 추가 ETF의 미확인 유형은 액티브 기본 집계에 포함하지 않는다.
+
+한국 `pdf_per_cu_quantity`와 미국 `fund_reported_quantity`는 다른 단위다. 현금·파생상품 수량은 주식 수에서 제외한다. 미국 공식 CURRENCIES 현금 항목의 음수 비중·평가액은 원문대로 보존하되 주식의 음수 수량/비중은 허용하지 않는다. 수량 변화에는 설정·환매·자금 유입 및 가격 변화의 영향이 있으므로 실제 운용사 순매수로 단정하지 않는다. ARK 자동 데이터는 `partial`, 수량 `unavailable`로 저장한다. 상위 목록에서 사라진 종목은 완전 매도로 판정하지 않는다. 식별자가 공개되지 않은 비상장 항목은 파생 JSON 원본에 남기고 종목 분석에서 제외한다. ARK의 전체 CSV 서버 robots 제한을 UA 변경·프록시로 우회하지 않는다. 전체 공식파일 확보 시 검토한 CSV mapping과 기존 `import` CLI를 이용한다.
+
+JPMorgan 전체 일별 자료는 `dailyHoldingsAll`의 실제 기준일·개수·각 행 날짜를 검증한다. 최신 자료만 제공하는 미국 소스는 과거 누락일을 임의로 만들지 않고 수집 이후의 관측 이력이 쌓인다. 미국 자료 갱신과 한국 수집 시각 차이로 당일 최신이 바로 표시되지 않을 수 있다. 동일 운용사의 여러 ETF는 Consensus에서 독립 기관 수로 세지 않으며 ETF 수와 운용사 수를 따로 표시한다. 종목은 명시적 ISIN/CUSIP/KRX 또는 소스별 안정 식별자로만 연결하며 ticker 유사성으로 기관 간 강제 병합하지 않는다.
+
+### 웹에서 수동 수집
+
+평소에는 기존 systemd timer가 실행한다. 기관·공시는 08:30/18:30 KST, ETF는 평일 17:30/19:30 KST 그대로다. 필요할 때 로그인 후 **데이터 · 저장공간 → 데이터 수집 → 지금 수집 / 전체 수집**을 누른다. 버튼은 SQLite `collection_jobs`에 작업을 등록하고 즉시 반환한다. Gunicorn 요청 안에서 collector를 실행하거나 shell/sudo/systemctl을 호출하지 않는다.
+
+`stock16-collector-worker.service`가 3초 간격으로 queue를 확인하고 기존 `run_collectors()`를 재사용한다. worker·자동 timer·CLI는 동일 `data/collector.lock` flock을 사용한다. 자동 수집 중의 웹 요청은 대기하고 동일 수집기의 대기/실행 작업은 HTTP 409로 기존 job을 반환한다. 서로 다른 수집기 요청은 순차 실행하며 전체 작업에서는 개별 실패 뒤에도 나머지를 계속한다. 전체 작업과 개별 대기 작업이 겹치면 기존 작업을 먼저 완료하도록 중복 요청을 거절한다.
+
+웹은 2.5초 polling으로 대기/진행/완료와 상세 결과를 표시한다. 완료 시 현재 dashboard·ETF·저장공간 정보를 다시 조회하며 전체 페이지를 reload하지 않는다. 설정이 없는 SEC·DART·Temasek 등은 `needs_configuration`으로 표시한다. DB 시간은 UTC, 사람에게 표시하는 시각은 Asia/Seoul KST다. 기준일·발표일·수집일은 그대로 구분한다.
+
+기존 로그인·HttpOnly/Secure/SameSite=Strict cookie·CSRF가 적용되며 요청 JSON은 collector 필드 하나만 허용한다. command/arguments/URL/path/env 등 추가 입력은 거절한다. 단일 관리자 인증이므로 requested_by는 비밀이 없는 `web`으로 기록한다. 결과에는 API key·SEC 연락처·raw 예외를 저장하지 않는다.
+
+| API (아래 경로 앞에 `/stock16-7` 포함) | 동작 |
+|---|---|
+| `POST /api/collect` | JSON `{"collector":"krx-etf"}` 또는 `all`; 생성 202, 중복 409, 미인증 401, CSRF 누락 403, 잘못된 입력 400 |
+| `GET /api/collection-jobs` | 최근 웹 작업 최대 100개, 수집기별 최근 실행/성공/다음 일정·현재 작업·공용 잠금 여부 |
+| `GET /api/collection-jobs/<id>` | 작업 상태·UTC 시각·신규 합계·수집기별 상세 결과; 없음 404 |
+
+허용 수집기: nps, nbim, krx-etf, sec-13f, gic, temasek, dart, all. `data_fetch_runs`는 `origin=scheduler/web/cli/backfill` 및 요청 시각·job_id를 기록한다. 기존 실행 기록의 origin은 확인할 수 없으므로 legacy다. 최근 실행 100건에 실행 방식·요청/시작/완료·결과·다음 예상 일정을 표시한다. worker 중단으로 남은 running job은 다음 worker가 공용 잠금을 얻은 뒤 error로 종료하며 저장된 snapshot은 보존한다. 자동 재실행으로 중복 수집하지 않는다.
+
+완료 작업 metadata만 maintenance/retention 시 기본 90일 뒤 정리한다. queued/running은 정리하지 않으며 연결된 실행 기록은 job_id만 NULL로 바꾼다. snapshot·holding·원본 보존 정책과 실행 기록 기존 365일 정책은 유지한다. `.env`는 root:stock16 0640, install/update의 init·migration은 반드시 `sudo -u stock16`으로 실행한다.
+
+```bash
+# 기존 CLI 수동수집 유지 (내부에서 collector.lock 획득)
+sudo -u stock16 .venv/bin/python -m stock16 collect --only krx-etf
+# worker 상태 / 최근 journal
+sudo systemctl status stock16-collector-worker.service --no-pager
+sudo journalctl -u stock16-collector-worker.service -n 50 --no-pager
+```

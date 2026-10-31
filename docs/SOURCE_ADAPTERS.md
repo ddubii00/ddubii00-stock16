@@ -2,6 +2,10 @@
 
 | 운용사 | 기본 adapter | 기준일·완전성 확인 |
 |---|---|---|
+| TIME | 공식 거래소 코드 확인 → 날짜별 `pdf_excel.php` XLSX | 공식 pdfDate 요청별 전체 5개 컬럼, 해외 EQUITY 수량 구분, 휴일 빈 표 skip |
+| KoAct | 공식 상품 JSON → 날짜별 `etf-pdf` JSON | stkTicker/fId, gijunYMD, list/totalCnt 대조 |
+| JPMorgan | 공식 catalogue ticker/CUSIP → product-data dailyHoldingsAll | 전체 행, 공식 개수 이상, effectiveDate와 모든 navDate 일치, latest-only |
+| ARK | 공식 상품 ID → 상위 10개 holdings HTML 임시 파싱 | 실제 As of, 4개 컬럼, 최대 10개, partial·수량 unavailable. HTML 미보관, 추출 JSON gzip만 보존 |
 | KODEX | 공식 상품목록 → product-pdf JSON | 거래소 코드/fId 대조, gijunYMD, list 길이/totalCnt 일치 |
 | SOL | 공식 상품목록의 etfResultData → `/api/fund/pdfList` | ETF_CD6/FUND_CD 교차 검증, 각 행 WORK_DT 일치, 날짜별 전체 배열 |
 | PLUS | 공식 상세페이지 → `/api/v1/product/pdf/list` | 상세페이지 summary__product-code 대조, 모든 페이지/totalElements, 각 행 wkdate 일치 |
@@ -40,3 +44,8 @@ NPS 월간 자산배분은 기존 공식 홈페이지 parser를 유지한다. �
 상세 파일은 `nps-domestic-equity`, `nps-foreign-equity`, `nps-large-holdings`에 분리한다. [국민연금 국내주식 공개 데이터 설명](https://www.data.go.kr/data/3070507/fileData.do)은 평가액 단위를 억원, 비중을 국내주식 내 비중으로 설명한다. 해당 설명만으로 다운로드 파일의 구조가 검증됐다는 뜻은 아니다. 실제 파일 column·기준일·발표일을 확인하고, 억원 자료라면 multipliers.market_value=100000000을 지정한다. 공시된 수량이 없으면 shares는 NULL이다. 일부 대량보유 공시는 partial로 두고 공개목록 이탈을 전량매도로 표시하지 않는다.
 
 Temasek은 별도 기관이며 datasets/discovery_rules/공식 feed 계약을 공유한다. 검증한 자료가 없으면 `공식 데이터 자동수집 불가 / 수동 공식자료 import 필요`를 표시한다. GIC는 공식 newsroom과 검토한 연차 배분만 제공하며 전체 포트폴리오를 만들어내지 않는다.
+
+
+액티브 ETF 기본 목록은 TIME 4개·KoAct 3개·ARK 4개·JPMorgan 2개다. 공식 분류 근거/확인일/운용사/상장국은 config/watchlists.json에 기록하고 etf_profiles로 정규화한다. 이전 패시브 기본 목록은 추적 중지 상태로 보존한다.
+
+공식 확인: [TIME 코스피액티브](https://www.timeetf.co.kr/m11_view.php?idx=11), [KoAct 코리아밸류업액티브](https://www.samsungactive.co.kr/etf/product/view.do?id=2ETFP3), [ARKK](https://www.ark-funds.com/funds/arkk), [JGRO](https://am.jpmorgan.com/us/en/asset-management/adv/products/jpmorgan-active-growth-etf-etf-shares-46654q609), [JAVA](https://am.jpmorgan.com/us/en/asset-management/adv/products/jpmorgan-active-value-etf-etf-shares-46641q167). ARK 전체 CSV 서버의 robots 제한은 우회하지 않는다. latest-only 미국 소스에 과거 날짜를 붙여 backfill하지 않는다.

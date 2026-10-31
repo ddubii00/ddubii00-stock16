@@ -29,6 +29,7 @@ class OfficialPDF:
 
 
 def only_one(repo):
+    repo.execute("UPDATE etf_watchlist SET enabled=1 WHERE fund_id='etf-069500'")
     repo.execute("UPDATE etf_watchlist SET enabled=0 WHERE fund_id<>'etf-069500'")
 
 

@@ -13,6 +13,8 @@ OFFICIAL_HOSTS={'fund.nps.or.kr','www.nps.or.kr','www.nbim.no','nbim.no',
 OFFICIAL_HOSTS.update({'tigeretf.com','www.riseetf.co.kr','riseetf.co.kr',
  'www.aceetf.co.kr','aceetf.co.kr','www.soletf.co.kr','soletf.co.kr',
  'www.plusetf.co.kr','plusetf.co.kr'})
+OFFICIAL_HOSTS.update({'www.timeetf.co.kr','timeetf.co.kr','www.samsungactive.co.kr',
+ 'www.ark-funds.com','ark-funds.com','assets.ark-funds.com','am.jpmorgan.com'})
 
 
 class FetchError(RuntimeError):

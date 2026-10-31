@@ -11,6 +11,7 @@ from .auth import authenticated,check_csrf,csrf_token,login,token_hash
 from .storage import storage_status
 from .periods import SUPPORTED_PERIODS
 from .freshness import decorate_entities
+from .etfs import catalog,in_focus,SCOPES
 
 
 def create_app(test_config=None):
@@ -146,8 +147,13 @@ def create_app(test_config=None):
     @bp.get('/api/institutions/<identifier>/allocation')
     def allocation(identifier): return output(filters(a.allocation(identifier)))
 
+    def etf_scope():
+        scope=request.args.get('scope','active')
+        if scope not in SCOPES: abort(400)
+        return scope
+
     @bp.get('/api/etfs')
-    def etfs(): return jsonify(decorate_entities(repo,repo.rows('SELECT f.*,w.enabled FROM funds f JOIN etf_watchlist w ON w.fund_id=f.id'),'fund'))
+    def etfs(): return jsonify(decorate_entities(repo,catalog(repo,etf_scope()),'fund'))
 
     @bp.get('/api/gurus')
     def gurus(): return jsonify(decorate_entities(repo,repo.rows('SELECT i.*,g.cik,g.corp_code,g.enabled,g.disclosure_level FROM institutions i JOIN guru_watchlist g ON g.institution_id=i.id'),'institution'))
@@ -169,9 +175,15 @@ def create_app(test_config=None):
                 if not name or not source.startswith('https://'): abort(400)
                 if kind=='etf':
                     code=body.get('code','')
-                    if not re.fullmatch(r'[0-9][0-9A-Z]{5}',code): abort(400)
+                    country=body.get('listing_country','KR')
+                    style=body.get('style','unknown')
+                    if country not in ('KR','US') or style not in ('active','passive','unknown'): abort(400)
+                    if not isinstance(code,str) or not re.fullmatch(r'[0-9][0-9A-Z]{5}' if country=='KR' else r'[A-Z]{1,10}',code): abort(400)
                     c.execute('INSERT INTO funds VALUES(?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,source_url=excluded.source_url',
-                              (identifier,'kr-etf',name,'ETF',code,source))
+                              (identifier,'kr-etf' if country=='KR' else 'us-etf',name,'ETF',code,source))
+                    c.execute('''INSERT INTO etf_profiles VALUES(?,?,?,?,?,?,?) ON CONFLICT(fund_id) DO UPDATE SET
+                      style=excluded.style,listing_country=excluded.listing_country,manager=excluded.manager,strategy=excluded.strategy,evidence_url=excluded.evidence_url''',
+                      (identifier,style,country,str(body.get('manager',''))[:200],str(body.get('strategy',''))[:200],source,None))
                     c.execute('INSERT INTO etf_watchlist VALUES(?,1) ON CONFLICT(fund_id) DO UPDATE SET enabled=1',(identifier,))
                 else:
                     cik=body.get('cik') or None
@@ -206,14 +218,18 @@ def create_app(test_config=None):
     @bp.get('/api/rankings')
     def rankings():
         from decimal import Decimal
-        rows=repo.rows('''SELECT ch.*,s.name,s.country,s.sector,p.fund_id,p.as_of_date,p.published_at,p.source_url,f.name fund_name,p.currency,p.quantity_type
+        rows=repo.rows('''SELECT ch.*,s.name,s.country,s.sector,p.fund_id,p.as_of_date,p.published_at,p.source_url,f.name fund_name,p.currency,p.quantity_type,f.kind
           FROM holding_changes ch JOIN effective_snapshots p ON p.id=ch.snapshot_id
           JOIN securities s ON s.id=ch.security_id JOIN funds f ON f.id=p.fund_id
           WHERE p.id=(SELECT e.id FROM effective_snapshots e WHERE e.fund_id=p.fund_id ORDER BY e.as_of_date DESC LIMIT 1)''')
+        scope=etf_scope()
+        if scope!='all':
+            focus=in_focus(repo,scope)
+            rows=[r for r in rows if r['kind']!='ETF' or r['fund_id'] in focus]
         field=request.args.get('metric','shares_delta')
-        if field=='quantity_delta':
+        if field in ('quantity_delta','fund_quantity_delta'):
+            wanted_type='pdf_per_cu_quantity' if field=='quantity_delta' else 'fund_reported_quantity'
             field='shares_delta'
-            wanted_type='pdf_per_cu_quantity'
         else:
             wanted_type=request.args.get('quantity_type','shares')
         if field not in ('shares_delta','portfolio_weight_delta_pp','market_value_delta'): abort(400)
@@ -238,11 +254,32 @@ def create_app(test_config=None):
         if mode not in ('held','increased','weight','new'): abort(400)
         period=request.args.get('period','1m')
         if period not in SUPPORTED_PERIODS: abort(400)
-        result=a.consensus(period,minimum,mode,request.args.getlist('institution') or None)
+        result=a.consensus(period,minimum,mode,request.args.getlist('institution') or None,etf_scope())
         return jsonify(filters(result))
 
     @bp.get('/api/disclosures')
     def disclosures(): return output(a.disclosures(validate_date(request.args.get('since')) or '0000-01-01',request.args.get('institution')))
+
+    @bp.post('/api/collect')
+    def collect():
+        from .jobs import enqueue
+        body=request.get_json(silent=True)
+        if not isinstance(body,dict) or set(body)!={'collector'}: abort(400)
+        try: job,created=enqueue(repo,body['collector'])
+        except ValueError: abort(400)
+        return jsonify(job=job,error=None if created else 'already_queued_or_running'),202 if created else 409
+
+    @bp.get('/api/collection-jobs')
+    def collection_jobs():
+        from .jobs import listing
+        return jsonify(listing(repo))
+
+    @bp.get('/api/collection-jobs/<int:job_id>')
+    def collection_job(job_id):
+        from .jobs import get_job
+        job=get_job(repo,job_id)
+        if job is None: abort(404)
+        return jsonify(job)
 
     @bp.get('/api/data-status')
     def data_status():

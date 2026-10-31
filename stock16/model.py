@@ -184,7 +184,7 @@ def import_snapshot(repo,meta,rows,checksum):
         old_effective=c.execute('SELECT * FROM effective_snapshots WHERE fund_id=? AND as_of_date=?',
                                 (fund['id'],meta['as_of_date'])).fetchone()
         quantity_type=meta.get('quantity_type', 'pdf_per_cu_quantity' if fund['kind']=='ETF' else 'shares')
-        if quantity_type not in ('shares','pdf_per_cu_quantity','unavailable'):
+        if quantity_type not in ('shares','pdf_per_cu_quantity','fund_reported_quantity','unavailable'):
             raise ValueError('Unknown quantity semantics')
         values=[]
         value_ids=[]
@@ -198,7 +198,9 @@ def import_snapshot(repo,meta,rows,checksum):
             nums=[number(row.get(f)) for f in ('shares','market_value','weight','ownership_pct')]
             if nums[0] is not None and Decimal(nums[0])<0:
                 raise ValueError('Negative long share count')
-            if nums[2] is not None and not Decimal(0)<=Decimal(nums[2])<=Decimal(100):
+            signed_cash=(quantity_type=='fund_reported_quantity' and row.get('instrument')=='CURRENCIES' and nums[0] is None)
+            minimum=Decimal(-100) if signed_cash else Decimal(0)
+            if nums[2] is not None and not minimum<=Decimal(nums[2])<=Decimal(100):
                 raise ValueError('Invalid percentage weight')
             value=[sid,pk,*nums,row.get('currency',meta['currency'])]
             h=digest(value)
@@ -207,6 +209,12 @@ def import_snapshot(repo,meta,rows,checksum):
             value_ids.append(c.execute('SELECT id FROM holding_values WHERE hash=?',(compact_hash,)).fetchone()[0])
             values.append(h)
         state=digest(sorted(values))
+        # Generated workbooks may change ZIP timestamps without changing positions.
+        # Keep each raw observation while avoiding a meaningless normalized revision.
+        if meta.get('deduplicate_state') and old_effective and old_effective['set_hash']==state and (
+            old_effective['published_at']==meta['published_at'] and old_effective['quantity_type']==quantity_type
+            and old_effective['disclosure_scope']==meta['disclosure_scope'] and old_effective['currency']==meta['currency']):
+            return old_effective['id'],False
         is_new=c.execute('INSERT OR IGNORE INTO holding_sets(hash,count) VALUES(?,?)',(state,len(values))).rowcount
         if is_new:
             set_id=c.execute('SELECT id FROM holding_sets WHERE hash=?',(state,)).fetchone()[0]

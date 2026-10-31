@@ -7,7 +7,7 @@ import tempfile
 import time
 from pathlib import Path
 
-LATEST_VERSION = 2
+LATEST_VERSION = 4
 
 V2 = (
     "ALTER TABLE portfolio_snapshots ADD COLUMN quantity_type TEXT NOT NULL DEFAULT 'shares'",
@@ -25,6 +25,38 @@ V2 = (
        source_url TEXT NOT NULL,reason TEXT NOT NULL,discovered_at TEXT NOT NULL,
        PRIMARY KEY(collector,fund_id,as_of_date))""",
 )
+
+V3 = (
+    """CREATE TABLE etf_profiles(
+       fund_id TEXT PRIMARY KEY REFERENCES funds(id),
+       style TEXT NOT NULL CHECK(style IN ('active','passive','unknown')),
+       listing_country TEXT NOT NULL CHECK(listing_country IN ('KR','US')),
+       manager TEXT,strategy TEXT,evidence_url TEXT,verified_on TEXT)""",
+    # One-time change of the old default universe; no historical rows are removed.
+    """UPDATE etf_watchlist SET enabled=0 WHERE fund_id IN (
+       'etf-069500','etf-229200','etf-091160','etf-305720','etf-091180',
+       'etf-091170','etf-244580','etf-379800','etf-379810','etf-390390',
+       'etf-360750','etf-466920','etf-266550')""",
+)
+
+V4 = (
+    """CREATE TABLE collection_jobs(
+       id INTEGER PRIMARY KEY,collector TEXT NOT NULL CHECK(collector IN ('nps','nbim','krx-etf','sec-13f','gic','temasek','dart','all')),
+       requested_at TEXT NOT NULL,started_at TEXT,finished_at TEXT,
+       status TEXT NOT NULL CHECK(status IN ('queued','running','success','partial','no_new_data','needs_configuration','error','cancelled')),
+       message TEXT NOT NULL DEFAULT '',new_items INTEGER NOT NULL DEFAULT 0,
+       requested_by TEXT NOT NULL,attempt_count INTEGER NOT NULL DEFAULT 0,
+       results_json TEXT NOT NULL DEFAULT '[]')""",
+    "CREATE UNIQUE INDEX collection_jobs_active ON collection_jobs(collector) WHERE status IN ('queued','running')",
+    "CREATE INDEX collection_jobs_pending ON collection_jobs(status,id)",
+    "CREATE INDEX collection_jobs_finished ON collection_jobs(finished_at)",
+    "ALTER TABLE data_fetch_runs ADD COLUMN origin TEXT NOT NULL DEFAULT 'legacy'",
+    "ALTER TABLE data_fetch_runs ADD COLUMN requested_at TEXT",
+    "ALTER TABLE data_fetch_runs ADD COLUMN job_id INTEGER REFERENCES collection_jobs(id) ON DELETE SET NULL",
+    "ALTER TABLE data_fetch_runs ADD COLUMN details_json TEXT",
+)
+
+MIGRATIONS={2:V2,3:V3,4:V4}
 
 
 def migration_backup(connection, root, version):
@@ -54,11 +86,15 @@ def migrate(connection, root, *, existing=False, steps=None):
     saved = migration_backup(connection, root, version) if existing else None
     try:
         connection.execute('BEGIN IMMEDIATE')
-        for statement in V2 if steps is None else steps:
-            connection.execute(statement)
+        if steps is not None:
+            for statement in steps: connection.execute(statement)
+            connection.execute('INSERT INTO schema_versions VALUES(?)', (LATEST_VERSION,))
+        else:
+            for target in range(version+1,LATEST_VERSION+1):
+                for statement in MIGRATIONS[target]: connection.execute(statement)
+                connection.execute('INSERT INTO schema_versions VALUES(?)', (target,))
         if connection.execute('PRAGMA foreign_key_check').fetchone():
             raise RuntimeError('Migration foreign key validation failed')
-        connection.execute('INSERT INTO schema_versions VALUES(?)', (LATEST_VERSION,))
         connection.commit()
     except BaseException:
         connection.rollback()

@@ -41,3 +41,12 @@ quantity_type은 snapshot 단위의 `shares` / `pdf_per_cu_quantity` / `unavaila
 source_status는 기관·펀드·구성요소별 마지막 점검·성공·예정·상태를 기록한다. aggregate collector의 일부 실패가 정상 ETF를 실패로 덮지 않는다. history_review_queue는 발표일 미검증 NBIM 자료나 검토가 필요한 filing을 분석에 투입하지 않고 표시한다. SEC 목록 cache는 원본 역사자료와 독립적인 bounded gzip cache다.
 
 기본 GFS는 3/2/3이며 명시한 환경 설정이 우선한다. 매일 maintenance는 bounded PRAGMA optimize와 WAL checkpoint만 실행한다. 체크포인트가 사용 중이면 busy 결과를 반환한다. VACUUM은 수동 명령이며 공간 검사·backup이 선행한다. 정규화 자료는 보존한다.
+
+
+## v3/v4 ETF 분류와 수집 queue
+
+v3는 fund FK를 가진 etf_profiles와 과거 기본 패시브 watchlist 중지만 추가한다. v4는 collection_jobs와 queued/running partial unique index, 실행 origin/requested_at/job_id/details_json을 추가한다. 기존 데이터와 hash를 수정하지 않는다. migration 전체는 사전 gzip backup 후 하나의 transaction으로 수행한다.
+
+HTTP POST는 고정 allowlist 검증과 BEGIN IMMEDIATE 아래 중복 검사/INSERT만 수행한다. worker는 별도 프로세스로 collector.lock flock을 획득한 뒤 job을 claim한다. 자동 systemd의 외부 flock은 그대로이고 CLI에 내부 잠금 획득 또는 신뢰된 systemd 전용 --lock-held를 사용한다. 웹은 이 인수를 받지 않는다. worker의 lifetime lock은 중복 worker 실행을 차단한다. 전역 flock을 얻은 뒤 남은 running job은 중단 기록으로 마무리하고 이미 저장한 정규화 자료를 보존한다. 사용자 입력으로 프로세스를 시작하지 않는다.
+
+미국 전체 펀드 보고수량은 fund_reported_quantity이며 한국 PDF의 CU당 구성수량과 분리한다. latest-only 소스는 날짜별 API처럼 반복 호출하지 않는다. 원본 bytes가 매번 달라지는 XLSX/JSON은 정규화 set·메타가 동일하면 불필요한 revision을 만들지 않되 raw checksum 관측은 따로 보존한다. 원본 정책은 source_type 문자열 대신 funds.kind=ETF에 적용한다.

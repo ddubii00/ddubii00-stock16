@@ -95,6 +95,8 @@ def test_api_quantity_rankings_never_mix_institution_shares_with_pdf(app):
     from stock16.storage import store_document
     import json
     repo=app.extensions['repo']
+    repo.execute("UPDATE etf_profiles SET style='active' WHERE fund_id='etf-069500'")
+    repo.execute("UPDATE etf_watchlist SET enabled=1 WHERE fund_id='etf-069500'")
     for fund,kind in [('nps','nps'),('etf-069500','krx-etf')]:
         for day,shares in [('2026-09-30','10'),('2026-10-30','12')]:
             meta=dict(fund_id=fund,as_of_date=day,published_at=day,source_type=kind,

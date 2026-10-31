@@ -147,7 +147,7 @@ class SEC13FCollector:
     def run(self,history=False,guru_id=None,from_year=None):
         ua=os.environ.get('STOCK16_SEC_USER_AGENT','')
         if '@' not in ua:
-            raise NeedsConfiguration('SEC 식별용 User-Agent (이름·이메일) 설정 필요')
+            raise NeedsConfiguration('STOCK16_SEC_USER_AGENT · SEC 식별용 User-Agent (이름·이메일) 설정 필요')
         self.transport.user_agent=ua
         count=0
         self.warnings=[]

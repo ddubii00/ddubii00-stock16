@@ -60,14 +60,14 @@ def raw_retention(repo,today=None,apply=False):
     observations=repo.rows('SELECT o.*,f.kind FROM source_observations o JOIN funds f ON f.id=o.fund_id')
     latest={}
     for o in observations:
-        if o['source_type']=='krx-etf':
+        if o['kind']=='ETF':
             key=(o['fund_id'],o['as_of_date'][:7])
             latest[key]=max(latest.get(key,''),o['as_of_date'])
     keep=set()
     for o in observations:
         # Other institutions' original files are retained. ETF monthly representative
         # is the last AVAILABLE official business-date file, not calendar-day guessing.
-        if o['source_type']!='krx-etf' or o['as_of_date']>=cutoff or o['as_of_date']==latest[(o['fund_id'],o['as_of_date'][:7])]:
+        if o['kind']!='ETF' or o['as_of_date']>=cutoff or o['as_of_date']==latest[(o['fund_id'],o['as_of_date'][:7])]:
             keep.add(o['checksum'])
     candidates=[d for d in repo.rows('SELECT * FROM source_documents WHERE raw_path IS NOT NULL') if d['checksum'] not in keep]
     if apply:
