@@ -3,3 +3,5 @@ gunicorn==23.0.0
 openpyxl==3.1.5
 defusedxml==0.7.1
 requests==2.32.5
+pypdf==6.21.4
+pyarrow==26.0.0

@@ -13,12 +13,16 @@ from .gic import GICCollector
 from .temasek import TemasekCollector
 from ..source_state import record_status
 
-COLLECTORS=('nps','nbim','krx-etf','sec-13f','gic','temasek','dart')
+COLLECTORS=('nps','nbim','krx-etf','sec-13f','gic','temasek','dart','market-ranks','msci-korea')
 
 
 def next_scheduled(name):
     from zoneinfo import ZoneInfo
     current=datetime.now(ZoneInfo('Asia/Seoul'))
+    if name in ('market-ranks','msci-korea'):
+        for offset in range(8):
+            candidate=(current+timedelta(days=offset)).replace(hour=9,minute=30,second=0,microsecond=0)
+            if candidate.weekday()==6 and candidate>current:return candidate.isoformat()
     hours=((17,30),(19,30)) if name=='krx-etf' else ((8,30),(18,30))
     for offset in range(8):
         day=current+timedelta(days=offset)
@@ -41,7 +45,13 @@ def run_collectors(repo,only=None,transport_factory=Transport,config_path=None,*
             warnings=[]
             collector=None
             transport=transport_factory()
-            if name=='sec-13f':
+            if name=='msci-korea':
+                from .msci import MSCICollector
+                collector=MSCICollector(repo,transport);count=collector.run()
+            elif name=='market-ranks':
+                from .market_ranks import MarketRankCollector
+                collector=MarketRankCollector(repo,transport,config.get('market-ranks',{}));count=collector.run()
+            elif name=='sec-13f':
                 collector=SEC13FCollector(repo,transport)
                 count=collector.run()
             elif name=='dart': count=DARTCollector(repo,transport).run()
@@ -89,7 +99,7 @@ def run_collectors(repo,only=None,transport_factory=Transport,config_path=None,*
         details=getattr(collector,'details',{}) if collector else {}
         repo.execute('UPDATE data_fetch_runs SET finished_at=?,status=?,message=?,new_items=?,details_json=? WHERE id=?',
           (now(),status,message,count,json.dumps(details),run_id))
-        institution={'krx-etf':'kr-etf','sec-13f':None,'dart':'korea-gurus'}.get(name,name)
+        institution={'krx-etf':'kr-etf','sec-13f':None,'dart':'korea-gurus','msci-korea':'msci','market-ranks':'market-data'}.get(name,name)
         if institution:
             source=repo.rows('SELECT source_url FROM institutions WHERE id=?',(institution,))
             record_status(repo,'institution',institution,'collector',name,status,message,

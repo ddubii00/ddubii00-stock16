@@ -206,7 +206,7 @@ DB 백업은 raw blob을 포함하지 않는다. 압축 raw 디렉터리는 별�
 
 일정은 Asia/Seoul 기준 ETF 평일 17:30/19:30, 기관·공시 08:30/18:30, backup/retention 03:10, 저장공간 15분마다다. 거래소 공휴일을 완전히 모델링한 calendar는 포함하지 않으며 공식 응답 기준일과 checksum으로 중복을 방지한다. timer는 Persistent이며 임의 지연이 추가된다. UI의 다음 예정은 이 기본 timer에 대한 예상값이므로 운영자가 timer를 수정하면 코드 설정도 맞춘다.
 
-업데이트: `bash deploy/update.sh`. backup 후 fast-forward merge와 v4 migration을 stock16 계정으로 실행하고 모든 배포 service/timer를 설치·daemon-reload한 뒤 worker를 enable/start하고 worker/web을 재시작한다. 기존 timer 일정은 유지한다. `.service.d` override와 `.env`, DB, raw를 보존한다. tracked 로컬 변경이 있으면 종료한다. `git clean`, hard reset, down으로 데이터를 지우지 않는다. 현재 schema는 v4다 (v3 ETF 분류, v4 수집 queue와 실행 origin). 시작 시 잠금 아래 기존 DB를 online backup → integrity_check → gzip으로 `data/backups/migrations/before-v<이전버전>-*.sqlite3.gz`에 보관한 뒤 명시적 migration을 한 transaction으로 실행한다. 실패 시 rollback하고 정상 시작을 거부한다. 재실행은 idempotent하며 새 버전 DB에 이전 코드를 적용하면 거부한다. migration 사전 백업은 일반 GFS 보존과 별도이므로 운영자가 검증 후 관리한다. 기존 snapshot·수량값·원본·비밀 설정은 유지한다.
+업데이트: `bash deploy/update.sh`. backup 후 fast-forward merge와 v5 migration을 stock16 계정으로 실행하고 모든 배포 service/timer를 설치·daemon-reload한 뒤 worker를 enable/start하고 worker/web을 재시작한다. 기존 timer 일정은 유지한다. `.service.d` override와 `.env`, DB, raw를 보존한다. tracked 로컬 변경이 있으면 종료한다. `git clean`, hard reset, down으로 데이터를 지우지 않는다. 현재 schema는 v5다 (v3 ETF 분류, v4 수집 queue와 실행 origin, v5 주간 시가총액/MSCI 리뷰). 시작 시 잠금 아래 기존 DB를 online backup → integrity_check → gzip으로 `data/backups/migrations/before-v<이전버전>-*.sqlite3.gz`에 보관한 뒤 명시적 migration을 한 transaction으로 실행한다. 실패 시 rollback하고 정상 시작을 거부한다. 재실행은 idempotent하며 새 버전 DB에 이전 코드를 적용하면 거부한다. migration 사전 백업은 일반 GFS 보존과 별도이므로 운영자가 검증 후 관리한다. 기존 snapshot·수량값·원본·비밀 설정은 유지한다.
 
 ## 테스트
 
@@ -271,3 +271,56 @@ sudo -u stock16 .venv/bin/python -m stock16 collect --only krx-etf
 sudo systemctl status stock16-collector-worker.service --no-pager
 sudo journalctl -u stock16-collector-worker.service -n 50 --no-pager
 ```
+
+### MSCI 한국 정기 편입·편출
+
+`MSCI 한국 편입·편출` 화면은 **MSCI Korea Standard**의 2020년 이후 공식 정기 변경표를 조회한다. 공개 아카이브에서 실제 링크를 발견한 PDF만 수집하고 두 열(편입/편출), 한국 요약 건수, 발표일 및 장 마감 반영일을 교차 검증한다. 변경이 없는 분기도 0/0으로 기록한다. 전체 지수 구성종목 목록을 역산하거나 Small Cap 목록과 섞지 않는다. 원문 영문명을 보존하고 식별자 미제공 항목을 다른 주식과 이름 유사성으로 연결하지 않는다. 초기 수집은 공개된 2020년 이후 분기 전체, 이후에는 누락 분기와 최근 두 분기 정정본을 확인한다. 원본 PDF는 checksum 기반 gzip 1개로 저장하며 HTML 전체는 영구 저장하지 않는다.
+
+```bash
+sudo -u stock16 .venv/bin/python -m stock16 collect --only msci-korea
+```
+
+### 주간 시가총액 Top 100 · ETF 제외
+
+KOSPI·KOSDAQ·NASDAQ **각 시장의 시가총액 상위 100개 주식**을 대상으로 한다. ETF·ETN은 제외하며 확인된 펀드/비주식 유형도 순위에서 제외한다. 우선주는 별도 종목이다. NASDAQ도 지수 편입 명단 대신 상장시장 시가총액 순위를 사용한다. 정규화 원본은 100위 밖을 포함한 전체 시장이다. 그래야 과거 67위가 현재 180위가 된 경우를 정확히 표시할 수 있다. 과거 당시 상장종목을 사용하며 현재 종목 목록/현재 발행주식 수를 과거에 적용하지 않는다.
+
+- 시작 주는 **2020-W01, 금요일 라벨 2020-01-03**이다. 주별 금요일 종가, 휴장일이면 같은 주 마지막 제공 거래일의 원본 날짜를 사용한다. 다음 주 자료나 직전 주 순위를 대신 붙이지 않는다. API 게시 지연으로 금요일 자료가 나중에 제공되면 다시 수집해 더 늦은 실제 기준일을 선택한다.
+- 화면에서 시장·과거 주를 선택해 Top 100과 전주 진입/이탈, 기존/최신 확보 순위를 조회한다. 전주 전체 자료가 없으면 진입/이탈은 비교 불가다. Top 100 이탈 종목의 전체시장 순위도 표시한다. 시장 시가총액·통화는 섞어 합산하지 않는다.
+- `과거 순위 종목 → 최신 순위`에서 2020-01-03 / 67을 입력하면 당시 종목과 현재 확보한 순위, 이름/ticker 변경 및 시장 이전 관측, 모든 주의 순위 이력을 조회한다. 같은 영구 종목 ID만 연결한다. 최신 주 자료가 없으면 **최신 주 미확보**로 표시하며 과거 순위를 현재 순위라고 하지 않는다. 목록 부재만으로 상장폐지/합병을 단정하지 않는다.
+- 화면은 각 시장의 확보 주 수/목표 주 수와 실제 기준일을 표시한다. 2020년 이후 전체 역사 수집이 완료됐다고 미리 표시하지 않는다. 실시간 시세 대신 실제 확보된 주간 종가 기준이다.
+
+**KOSPI/KOSDAQ 공개 자료 우선:** 키가 없으면 [FinanceData/marcap 공개 아카이브](https://github.com/FinanceData/marcap)를 사용한다. 거래소 직접 수집과 구별해 **Secondary**로 표시한다. 공개 Git revision과 blob SHA를 고정·검증한 연도별 Parquet만 읽고, 일별 전체 종목에서 각 주 마지막 제공 거래일을 추출한다. 거래량 0인 종목도 유지하며 KOSDAQ GLOBAL을 KOSDAQ으로 합친다. 실제 파일의 KRW 시가총액은 당시 종가×당시 상장주식 수로 단위 검증하며, 현재 주식 수로 과거 값을 계산하지 않는다. 연도별 압축 cache는 한 버전만 유지한다. 최신 주의 금요일까지 원본이 도달하지 않았으면 보수적으로 미확보로 남기고 다음 수집에서 다시 확인한다. 과거 원본의 사후 정정 가능성과 최신 게시 지연이 있다. 이 경로는 인증키가 필요 없다.
+
+**별도 승인 KRX Open API 연결:** [KRX Open API 서비스 목록](https://openapi.krx.co.kr/contents/OPP/INFO/service/OPPINFO004.cmd)의 유가증권·코스닥 일별매매정보를 사용한다. 공식 제공 범위는 2010년 이후이며 서버 `.env`에 `STOCK16_KRX_API_KEY`를 설정하고 **두 서비스 각각 사용 승인**을 받아야 한다. 키는 공식 API 호스트의 AUTH_KEY header로만 전달하고 redirect에 따라 다른 호스트로 전달하지 않는다. 샘플 endpoint/인증키는 사용하지 않으며 짧은 샘플 응답을 전체 시장으로 저장하지 않는다. 날짜·시장·종목코드·시가총액을 검증한다. 공식 주식 API 범위의 주권/DR 등을 사용하며 ETF/ETN endpoint는 사용하지 않는다.
+
+```bash
+# 초기 전체 backfill: 금요일 주 라벨, 기본 종료는 마지막 완료 주
+sudo -u stock16 .venv/bin/python -m stock16 market-backfill --from 2020-01-03
+# 특정 구간/시장만; 저장된 주는 재사용하고 종료 주는 정정 재확인
+sudo -u stock16 .venv/bin/python -m stock16 market-backfill \
+  --from 2020-01-03 --to 2020-12-25 --markets KOSPI KOSDAQ
+# 평소 최신 주 + 가장 오래된 누락 주부터 순차 보충
+sudo -u stock16 .venv/bin/python -m stock16 collect --only market-ranks
+```
+
+일반 수집의 시장별 탐색 상한은 `STOCK16_MARKET_BACKFILL_WEEKS=52`다. 대규모 초기 역사 수집은 명시적 `market-backfill` 명령을 사용한다. 같은 주·동일 원본은 중복 생성하지 않고 정정본은 이전 기록을 보존한다. 공개 연도 파일이 갱신되어도 선택 주의 정규화 값이 같으면 순위 snapshot을 추가하지 않는다. 재실행은 확보한 주를 건너뛴다. 시장·주별 오류를 격리하고 인증 거부 시 해당 시장의 대량 재요청을 중단한다.
+
+**NASDAQ:** 당시 상장시장·전체 종목·시가총액·영구 종목 식별자가 검증된 데이터 계약 또는 원본 파일이 필요하다. 현재 코드가 검증하지 않은 유료 서비스에 가입하거나 과거 Nasdaq 전체 순위를 무료로 모두 수집했다고 주장하지 않는다. 소스 미연결 시 `needs_configuration`이다. 검토한 전체 NASDAQ 주식 CSV/JSON은 아래 경로로 import할 수 있다. 공급자의 현재 시장분류를 과거에 소급 적용하지 말아야 하며, 상장폐지 종목과 share class별 시가총액 범위도 확인해야 한다. ticker 단독 식별은 거절한다.
+
+```bash
+# metadata는 config/market-import.example.json을 복사해 실제 원본과 맞춘다.
+sudo -u stock16 .venv/bin/python -m stock16 import-market /path/reviewed.csv \
+  --metadata /path/reviewed-metadata.json --format csv
+```
+
+행 필드: `name,ticker,exchange,instrument,market_cap` 및 `kr_code/isin/cusip/source_security_id` 중 명시적 영구 식별자. exchange는 실제 기준일의 KOSPI/KOSDAQ/NASDAQ이다. instrument는 STOCK/COMMON_STOCK/PREFERRED_STOCK/DR/REIT/SPAC 또는 명시적 ETF/ETN/FUND 등 제외 대상이다. 메타데이터에 market/as_of_date/currency/source_url/source_type/universe_definition, `universe_complete: true`, **실제 원본 전체 행 수 expected_count**가 필요하다. 기본 예시는 false/0으로 import를 거절한다. 이 파일 import는 전체 시장임을 운영자가 검토하는 경로이며 Top 100만 있는 파일을 full로 선언하면 안 된다. USD 시총은 단위가 달러인 수치를 넣고 공급자의 백만 달러 수치는 명시적으로 환산해야 한다.
+
+종목은 기존 securities/identifiers를 공유한다. 시장별 당시 이름·ticker는 값이 달라질 때만 market_listings에 정규화해 저장한다. 주별 rank 행은 정수 FK·순위·시가총액으로 구성하며 주간 전체 snapshot·순위는 영구 보존한다. 원본은 gzip/checksum 중복 방지를 적용한다.
+
+새 API는 공통 인증 아래 `GET /api/market-rankings/status`, `GET /api/market-rankings?market=KOSPI&week=2020-01-03`, `GET /api/market-rankings/trace?market=KOSPI&week=2020-01-03&rank=67`, `GET /api/msci-reviews?year=2020`이다. 경로 앞에는 기존 `/stock16-7`을 붙인다. 웹 수집 큐 allowlist에 market-ranks/msci-korea를 추가했으며 웹에서 source URL·명령·인증키를 받지 않는다.
+
+### 주간 자동 확인
+
+`stock16-weekly.timer`가 **매주 일요일 09:30 KST**(최대 2분 임의 지연)에 `stock16-weekly.service`를 실행해 market-ranks와 msci-korea를 확인한다. 공개 아카이브 게시 지연을 고려한 시각이며 미국 금요일 장 마감 이후다. 로컬 개발 서버는 systemd timer를 실행하지 않으며 Linux 설치/업데이트 후 enable된다. 기존 기관/ETF timer 일정은 변경하지 않는다. 공용 collector.lock·실행 origin=scheduler·기존 큐 worker와의 중복 방지를 유지한다. 공개 한국 자료의 누락/접근 실패와 NASDAQ 미연결 상태는 시장별로 기록한다. 브라우저 알림/이메일 발송은 추가하지 않는다.
+
+schema v5는 시장/순위/리뷰 table과 두 수집기 queue allowlist를 추가한다. 사전 migration backup 후 transaction 내 queue table을 재구성하며 job ID·상태·실행 참조를 보존한다. SQLite 참조 table 교체 동안 FK 검사는 transaction 밖에서 잠시 중지하고 commit 전에 전체 foreign_key_check를 수행한 뒤 즉시 다시 켠다. 실패는 rollback한다.

@@ -8,13 +8,13 @@ import requests
 
 OFFICIAL_HOSTS={'fund.nps.or.kr','www.nps.or.kr','www.nbim.no','nbim.no',
  'www.gic.com.sg','gic.com.sg','www.temasek.com.sg','www.temasekreview.com.sg',
- 'data.krx.co.kr','openapi.krx.co.kr','www.samsungfund.com','m.samsungfund.com',
+ 'data.krx.co.kr','openapi.krx.co.kr','data-dbg.krx.co.kr','www.samsungfund.com','m.samsungfund.com',
  'www.tigeretf.com','www.sec.gov','data.sec.gov','opendart.fss.or.kr'}
 OFFICIAL_HOSTS.update({'tigeretf.com','www.riseetf.co.kr','riseetf.co.kr',
  'www.aceetf.co.kr','aceetf.co.kr','www.soletf.co.kr','soletf.co.kr',
  'www.plusetf.co.kr','plusetf.co.kr'})
 OFFICIAL_HOSTS.update({'www.timeetf.co.kr','timeetf.co.kr','www.samsungactive.co.kr',
- 'www.ark-funds.com','ark-funds.com','assets.ark-funds.com','am.jpmorgan.com'})
+ 'www.ark-funds.com','ark-funds.com','assets.ark-funds.com','am.jpmorgan.com','www.msci.com','app2.msci.com','api.github.com','raw.githubusercontent.com'})
 
 
 class FetchError(RuntimeError):
@@ -25,7 +25,8 @@ class FetchError(RuntimeError):
 
 
 class Transport:
-    def __init__(self,user_agent='stock16/1.0',max_bytes=25*1024*1024):
+    def __init__(self,user_agent='stock16/1.0',max_bytes=25*1024*1024,*,credentials=None):
+        self.credentials=credentials or {}
         self.user_agent=user_agent
         self.max_bytes=max_bytes
         self.last_request=0
@@ -67,7 +68,7 @@ class Transport:
                 raise FetchError('Official robots policy disallows automated access')
             time.sleep(max(0,0.25-(time.monotonic()-self.last_request)))
             self.last_request=time.monotonic()
-            with self.http.get(url,headers={'User-Agent':self.user_agent,'Accept-Encoding':'identity'},timeout=(5,20),stream=True,allow_redirects=False) as r:
+            with self.http.get(url,headers={'User-Agent':self.user_agent,'Accept-Encoding':'identity',**self.credentials.get(p.hostname,{})},timeout=(5,20),stream=True,allow_redirects=False) as r:
                 # A missing robots.txt permits standard API access. Other failures fail closed.
                 if not robots and r.status_code==404:
                     return b'', 'text/plain',url

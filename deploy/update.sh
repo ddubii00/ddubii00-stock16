@@ -11,6 +11,6 @@ sudo install -m 644 deploy/*.service deploy/*.timer /etc/systemd/system/
 sudo install -m 644 deploy/stock16.logrotate /etc/logrotate.d/stock16
 sudo systemctl daemon-reload
 sudo systemctl enable stock16-collector-worker.service
-sudo systemctl enable --now stock16-etf.timer stock16-daily.timer stock16-maintenance.timer stock16-disk.timer
+sudo systemctl enable --now stock16-weekly.timer stock16-etf.timer stock16-daily.timer stock16-maintenance.timer stock16-disk.timer
 sudo systemctl restart stock16-collector-worker.service webapp-stock16-7.service
 echo 'Updated application; DB, raw data and .env preserved.'

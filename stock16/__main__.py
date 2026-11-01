@@ -41,6 +41,8 @@ def main():
     retention=sub.add_parser('retention');retention.add_argument('--apply',action='store_true')
     ingest=sub.add_parser('import');ingest.add_argument('file',type=Path);ingest.add_argument('--config',type=Path,required=True);ingest.add_argument('--collector',required=True,choices=['nps','nbim','krx-etf','gic','temasek','dart'])
     restore=sub.add_parser('restore');restore.add_argument('file',type=Path);restore.add_argument('--target',type=Path,required=True)
+    market_import=sub.add_parser('import-market');market_import.add_argument('file',type=Path);market_import.add_argument('--metadata',type=Path,required=True);market_import.add_argument('--format',choices=['csv','json'],default='csv')
+    market_backfill=sub.add_parser('market-backfill');market_backfill.add_argument('--from',dest='start',default='2020-01-03');market_backfill.add_argument('--to',dest='end');market_backfill.add_argument('--markets',nargs='+',choices=['KOSPI','KOSDAQ'],default=['KOSPI','KOSDAQ'])
     args=parser.parse_args()
     if args.command=='setup': setup();return
     load_env()
@@ -62,6 +64,34 @@ def main():
             results=run_collectors(repo,args.only,config_path=args.config,origin=args.origin)
         print(json.dumps(results,ensure_ascii=False,indent=2))
         if any(r['status']=='error' for r in results): raise SystemExit(1)
+    elif args.command=='import-market':
+        from .markets import import_market
+        from .collectors.parsers import table
+        from .jobs import collector_lock
+        if args.file.stat().st_size>25*1024*1024:raise SystemExit('File size limit exceeded')
+        body=args.file.read_bytes();metadata=json.loads(args.metadata.read_text())
+        rows=table(body,args.format)
+        with collector_lock(repo):result=import_market(repo,metadata,rows,body,'text/csv' if args.format=='csv' else 'application/json')
+        print(json.dumps(dict(snapshot_id=result[0],created=result[1])))
+    elif args.command=='market-backfill':
+        from .collectors.market_ranks import MarketRankCollector
+        from .collectors.transport import Transport
+        from .jobs import collector_lock
+        from .model import now
+        run=repo.execute("INSERT INTO data_fetch_runs(collector,started_at,status,origin,requested_at) VALUES('market-ranks',?,'running','backfill',?)",(now(),now()))
+        try:
+            with collector_lock(repo):
+                collector=MarketRankCollector(repo,Transport(),{})
+                count=collector.run(start=args.start,end=args.end,budget=1000,markets=args.markets)
+            status='partial' if collector.warnings else 'success' if count else 'no_new_data'
+            message='주간 역사 snapshot '+str(count)+'건'+(' · '+'; '.join(collector.warnings) if collector.warnings else '')
+        except Exception as error:
+            from .collectors.base import NeedsConfiguration
+            status='needs_configuration' if isinstance(error,NeedsConfiguration) else 'error'
+            count=0;message=str(error) if isinstance(error,NeedsConfiguration) else '시장 backfill 실패 · '+type(error).__name__
+        repo.execute('UPDATE data_fetch_runs SET finished_at=?,status=?,new_items=?,message=? WHERE id=?',(now(),status,count,message,run))
+        print(json.dumps(dict(status=status,new_items=count,message=message),ensure_ascii=False))
+        if status=='error':raise SystemExit(1)
     elif args.command=='collector-worker':
         from .jobs import worker
         worker(repo,once=args.once,poll_interval=args.poll_interval)

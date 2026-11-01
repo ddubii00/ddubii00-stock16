@@ -11,7 +11,7 @@ class Analytics:
 
     def institutions(self):
         from .freshness import decorate_entities
-        rows=self.repo.rows("SELECT i.*,(SELECT count(*) FROM portfolio_snapshots p WHERE p.institution_id=i.id) snapshot_count FROM institutions i ORDER BY i.id")
+        rows=self.repo.rows("SELECT i.*,(SELECT count(*) FROM portfolio_snapshots p WHERE p.institution_id=i.id) snapshot_count FROM institutions i WHERE i.kind NOT IN ('Market','Index Provider') ORDER BY i.id")
         return decorate_entities(self.repo,rows,'institution')
 
     def snapshot(self,fund,asof=None):

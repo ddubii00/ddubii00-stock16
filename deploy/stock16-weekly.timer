@@ -1,0 +1,9 @@
+[Unit]
+Description=Weekly stock16 ranks after Friday closes and KRX next-day publication
+[Timer]
+OnCalendar=Sun *-*-* 09:30:00 Asia/Seoul
+Persistent=true
+RandomizedDelaySec=120
+Unit=stock16-weekly.service
+[Install]
+WantedBy=timers.target

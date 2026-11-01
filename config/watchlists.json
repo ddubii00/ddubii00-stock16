@@ -62,6 +62,24 @@
       "scope": "공식 일별 보유자료 · ARK는 상위 10개 부분공개",
       "cadence": "business daily",
       "source_url": "https://am.jpmorgan.com/"
+    },
+    {
+      "id": "market-data",
+      "name": "거래소 시가총액",
+      "kind": "Market",
+      "country": null,
+      "scope": "주식 전종목 시가총액 · ETF 제외",
+      "cadence": "weekly",
+      "source_url": "https://openapi.krx.co.kr/"
+    },
+    {
+      "id": "msci",
+      "name": "MSCI 지수 변경",
+      "kind": "Index Provider",
+      "country": "KR",
+      "scope": "MSCI Korea Standard 편입·편출 · 전체 보유 아님",
+      "cadence": "quarterly",
+      "source_url": "https://app2.msci.com/eqb/gimi/stdindex/index_review.html"
     }
   ],
   "etfs": [
@@ -465,6 +483,38 @@
       "kind": "Pension",
       "code": null,
       "source_url": "https://fund.nps.or.kr/"
+    },
+    {
+      "id": "market-kospi",
+      "institution_id": "market-data",
+      "name": "KOSPI 주식 시가총액",
+      "kind": "Market",
+      "code": null,
+      "source_url": "https://openapi.krx.co.kr/"
+    },
+    {
+      "id": "market-kosdaq",
+      "institution_id": "market-data",
+      "name": "KOSDAQ 주식 시가총액",
+      "kind": "Market",
+      "code": null,
+      "source_url": "https://openapi.krx.co.kr/"
+    },
+    {
+      "id": "market-nasdaq",
+      "institution_id": "market-data",
+      "name": "NASDAQ 주식 시가총액",
+      "kind": "Market",
+      "code": null,
+      "source_url": "https://www.nasdaq.com/"
+    },
+    {
+      "id": "msci-korea",
+      "institution_id": "msci",
+      "name": "MSCI Korea Standard",
+      "kind": "Index",
+      "code": null,
+      "source_url": "https://app2.msci.com/eqb/gimi/stdindex/index_review.html"
     }
   ]
 }

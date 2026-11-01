@@ -121,7 +121,7 @@ def test_all_failure_continues(repo):
     work_once(repo,runner=runner)
     final=get_job(repo,job['id'])
     assert calls==list(COLLECTORS) and final['status']=='partial'
-    assert final['new_items']==6 and len(final['results'])==7
+    assert final['new_items']==len(COLLECTORS)-1 and len(final['results'])==len(COLLECTORS)
 
 
 def test_scheduler_flock_leaves_job_queued(repo):

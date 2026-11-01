@@ -14,8 +14,8 @@ jobs:
       - run: node --check stock16/static/app.js
       - run: for script in deploy/*.sh; do bash -n "$script"; done
       - run: pip check
-      - name: Verify systemd worker unit
+      - name: Verify systemd worker and weekly units
         run: |
           sudo mkdir -p /var/www/stock16-7/.venv/bin
           sudo ln -s "$(command -v python)" /var/www/stock16-7/.venv/bin/python
-          systemd-analyze verify deploy/stock16-collector-worker.service
+          systemd-analyze verify deploy/stock16-collector-worker.service deploy/stock16-weekly.service deploy/stock16-weekly.timer

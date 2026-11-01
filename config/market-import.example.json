@@ -1,0 +1,10 @@
+{
+  "market": "NASDAQ",
+  "as_of_date": "2020-01-03",
+  "currency": "USD",
+  "source_url": "https://www.nasdaq.com/",
+  "source_type": "reviewed-market-import",
+  "universe_complete": false,
+  "expected_count": 0,
+  "universe_definition": "실제 원본의 당시 상장시장/주식 종목 범위/주식종류별 시가총액/개수를 검증한 뒤 수정. 예시는 실행 가능한 데이터가 아님."
+}

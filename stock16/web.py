@@ -260,6 +260,48 @@ def create_app(test_config=None):
     @bp.get('/api/disclosures')
     def disclosures(): return output(a.disclosures(validate_date(request.args.get('since')) or '0000-01-01',request.args.get('institution')))
 
+    @bp.get('/api/market-rankings/status')
+    def market_rank_status():
+        from .markets import MarketAnalytics
+        return jsonify(markets=MarketAnalytics(repo).status())
+
+    def market_filters():
+        from .markets import MARKETS
+        market=request.args.get('market','KOSPI')
+        week=request.args.get('week','latest')
+        if market not in MARKETS:abort(400)
+        if week!='latest':
+            if not re.fullmatch(r'\d{4}-\d{2}-\d{2}',week):abort(400)
+            validate_date(week)
+            from datetime import date
+            if date.fromisoformat(week).weekday()!=4 or week<'2020-01-03':abort(400)
+        return market,week
+
+    @bp.get('/api/market-rankings')
+    def market_rankings():
+        from .markets import MarketAnalytics
+        market,week=market_filters()
+        return jsonify(MarketAnalytics(repo).ranking(market,week))
+
+    @bp.get('/api/market-rankings/trace')
+    def market_trace():
+        from .markets import MarketAnalytics
+        market,week=market_filters()
+        if week=='latest':abort(400)
+        try:rank=int(request.args.get('rank','67'))
+        except ValueError:abort(400)
+        if not 1<=rank<=100000:abort(400)
+        return jsonify(MarketAnalytics(repo).trace(market,week,rank))
+
+    @bp.get('/api/msci-reviews')
+    def msci_reviews():
+        from .collectors.msci import reviews
+        year=request.args.get('year')
+        if year is not None and (not re.fullmatch(r'20[0-9]{2}',year) or int(year)<2020):abort(400)
+        rows=reviews(repo,year)
+        source=repo.rows("SELECT * FROM source_status WHERE entity_type='fund' AND entity_id='msci-korea'")
+        return jsonify(reviews=rows,source_status=source,index='MSCI Korea Standard',scope='quarterly_review_changes',start_year=2020)
+
     @bp.post('/api/collect')
     def collect():
         from .jobs import enqueue

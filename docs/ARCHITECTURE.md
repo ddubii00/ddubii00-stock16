@@ -50,3 +50,11 @@ v3는 fund FK를 가진 etf_profiles와 과거 기본 패시브 watchlist 중지
 HTTP POST는 고정 allowlist 검증과 BEGIN IMMEDIATE 아래 중복 검사/INSERT만 수행한다. worker는 별도 프로세스로 collector.lock flock을 획득한 뒤 job을 claim한다. 자동 systemd의 외부 flock은 그대로이고 CLI에 내부 잠금 획득 또는 신뢰된 systemd 전용 --lock-held를 사용한다. 웹은 이 인수를 받지 않는다. worker의 lifetime lock은 중복 worker 실행을 차단한다. 전역 flock을 얻은 뒤 남은 running job은 중단 기록으로 마무리하고 이미 저장한 정규화 자료를 보존한다. 사용자 입력으로 프로세스를 시작하지 않는다.
 
 미국 전체 펀드 보고수량은 fund_reported_quantity이며 한국 PDF의 CU당 구성수량과 분리한다. latest-only 소스는 날짜별 API처럼 반복 호출하지 않는다. 원본 bytes가 매번 달라지는 XLSX/JSON은 정규화 set·메타가 동일하면 불필요한 revision을 만들지 않되 raw checksum 관측은 따로 보존한다. 원본 정책은 source_type 문자열 대신 funds.kind=ETF에 적용한다.
+
+## v5 주간 시가총액과 MSCI 리뷰
+
+Top 100은 전체 시장 순위의 조회 결과다. market_snapshots → market_ranks는 당시 상장된 전종목을 저장하며 securities/identifiers를 공유한다. 당시 이름·ticker·시장·주식 유형은 market_listings로 정규화한다. 시총은 KRW/USD Decimal 문자열, 순위는 정수이며 동률은 영구 ID 순서다. 전주 비교는 정확히 7일 전 라벨의 실제 snapshot이 있을 때만 수행한다. 100위 이탈 이후 전체시장 순위, 동일 ID의 시장 이전과 이름 변경을 추적한다. 최신 확보 주와 현재 완료 주의 차이는 API에 명시한다.
+
+KRX 공식 승인 API 또는 FinanceData/marcap 공개 아카이브(Secondary)를 사용한다. 공개 원본은 Git revision/blob hash 검증 후 연도별 gzip cache 한 버전만 보관하고 날짜 추출본은 checksum 기반 압축 저장한다. 연도 파일 변경만으로 동일 정규화 순위의 revision을 추가하지 않는다. 주간 정규화 자료는 영구 보존한다. NASDAQ 전체 역사 자료 미연결 상태는 0주/설정 필요이며 현재 종목으로 과거 순위를 역산하지 않는다.
+
+MSCI 리뷰는 전체 보유 snapshot과 별도 table이다. 분기별 발표일·장 마감 반영일과 영문 추가/삭제 목록만 기록하며 전체 지수 구성종목을 추정하지 않는다. 식별자가 없는 이름을 securities에 자동 병합하지 않는다. schema v5의 queue table 재구성은 기존 job ID와 실행 FK를 보존하며 commit 전 foreign_key_check를 수행한다. 두 수집기는 기존 worker와 공용 flock을 공유하며 일요일 09:30 KST timer로 확인한다.

@@ -7,7 +7,7 @@ import tempfile
 import time
 from pathlib import Path
 
-LATEST_VERSION = 4
+LATEST_VERSION = 5
 
 V2 = (
     "ALTER TABLE portfolio_snapshots ADD COLUMN quantity_type TEXT NOT NULL DEFAULT 'shares'",
@@ -56,7 +56,55 @@ V4 = (
     "ALTER TABLE data_fetch_runs ADD COLUMN details_json TEXT",
 )
 
-MIGRATIONS={2:V2,3:V3,4:V4}
+V5 = (
+    # Rebuild the allowlist CHECK while retaining queue IDs and run references.
+    """CREATE TABLE collection_jobs_v5(
+       id INTEGER PRIMARY KEY,collector TEXT NOT NULL CHECK(collector IN ('nps','nbim','krx-etf','sec-13f','gic','temasek','dart','all','market-ranks','msci-korea')),
+       requested_at TEXT NOT NULL,started_at TEXT,finished_at TEXT,
+       status TEXT NOT NULL CHECK(status IN ('queued','running','success','partial','no_new_data','needs_configuration','error','cancelled')),
+       message TEXT NOT NULL DEFAULT '',new_items INTEGER NOT NULL DEFAULT 0,
+       requested_by TEXT NOT NULL,attempt_count INTEGER NOT NULL DEFAULT 0,
+       results_json TEXT NOT NULL DEFAULT '[]')""",
+    "INSERT INTO collection_jobs_v5 SELECT * FROM collection_jobs",
+    "DROP TABLE collection_jobs",
+    "ALTER TABLE collection_jobs_v5 RENAME TO collection_jobs",
+    "CREATE UNIQUE INDEX collection_jobs_active ON collection_jobs(collector) WHERE status IN ('queued','running')",
+    "CREATE INDEX collection_jobs_pending ON collection_jobs(status,id)",
+    "CREATE INDEX collection_jobs_finished ON collection_jobs(finished_at)",
+    """CREATE TABLE market_listings(
+       id INTEGER PRIMARY KEY,security_id INTEGER NOT NULL REFERENCES securities(id),
+       market TEXT NOT NULL,ticker TEXT NOT NULL,name TEXT NOT NULL,instrument TEXT NOT NULL,
+       UNIQUE(security_id,market,ticker,name,instrument))""",
+    """CREATE TABLE market_snapshots(
+       id INTEGER PRIMARY KEY,market TEXT NOT NULL CHECK(market IN ('KOSPI','KOSDAQ','NASDAQ')),
+       week_end TEXT NOT NULL,as_of_date TEXT NOT NULL,currency TEXT NOT NULL,
+       universe_count INTEGER NOT NULL,excluded_count INTEGER NOT NULL DEFAULT 0,
+       universe_definition TEXT NOT NULL,source_type TEXT NOT NULL,
+       observation_id INTEGER NOT NULL REFERENCES source_observations(id),
+       checksum TEXT NOT NULL REFERENCES source_documents(checksum),created_at TEXT NOT NULL,
+       UNIQUE(market,as_of_date,checksum))""",
+    "CREATE INDEX market_snapshot_weeks ON market_snapshots(market,week_end,as_of_date,id)",
+    """CREATE TABLE market_ranks(
+       snapshot_id INTEGER NOT NULL REFERENCES market_snapshots(id),
+       security_id INTEGER NOT NULL REFERENCES securities(id),
+       listing_id INTEGER NOT NULL REFERENCES market_listings(id),
+       rank INTEGER NOT NULL,market_cap TEXT NOT NULL,
+       PRIMARY KEY(snapshot_id,security_id),UNIQUE(snapshot_id,rank)) WITHOUT ROWID""",
+    "CREATE INDEX market_ranks_security ON market_ranks(security_id,snapshot_id)",
+    """CREATE TABLE msci_reviews(
+       id INTEGER PRIMARY KEY,index_id TEXT NOT NULL,review_period TEXT NOT NULL,
+       announced_at TEXT NOT NULL,effective_close TEXT NOT NULL,
+       additions_count INTEGER NOT NULL,deletions_count INTEGER NOT NULL,
+       observation_id INTEGER NOT NULL REFERENCES source_observations(id),
+       checksum TEXT NOT NULL REFERENCES source_documents(checksum),
+       created_at TEXT NOT NULL,UNIQUE(index_id,review_period,checksum))""",
+    """CREATE TABLE msci_review_changes(
+       review_id INTEGER NOT NULL REFERENCES msci_reviews(id),
+       action TEXT NOT NULL CHECK(action IN ('ADDED','DELETED')),name TEXT NOT NULL,
+       PRIMARY KEY(review_id,action,name)) WITHOUT ROWID""",
+)
+
+MIGRATIONS={2:V2,3:V3,4:V4,5:V5}
 
 
 def migration_backup(connection, root, version):
@@ -84,6 +132,9 @@ def migrate(connection, root, *, existing=False, steps=None):
     if version == LATEST_VERSION:
         return None
     saved = migration_backup(connection, root, version) if existing else None
+    # SQLite requires FK suspension outside the transaction for an atomic
+    # referenced-table rebuild. Validate all references before commit and restore.
+    connection.execute('PRAGMA foreign_keys=OFF')
     try:
         connection.execute('BEGIN IMMEDIATE')
         if steps is not None:
@@ -99,4 +150,6 @@ def migrate(connection, root, *, existing=False, steps=None):
     except BaseException:
         connection.rollback()
         raise
+    finally:
+        connection.execute('PRAGMA foreign_keys=ON')
     return saved

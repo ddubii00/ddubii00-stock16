@@ -49,3 +49,15 @@ Oracle 실서버 접속, Ubuntu ARM64 실행, 운영 systemd/nginx/TLS 배포는
 - 1440px 및 모바일 390px 화면 확인. 모바일 document.scrollWidth=390으로 가로 넘침 없고 모든 수집 버튼이 viewport 안에 배치됐다. 상세 시각·메시지는 펼침 영역으로 제공한다.
 - 기존 v2 사전 migration gzip backup의 원본 행과 현재 v4 비교: snapshot 20, holding value 18,935, holding set 20, holding member 18,937, security/identifier 각 10,379, source document/observation 각 36, allocation 25, disclosure 12개 원본 행이 모두 그대로 포함됐다. integrity_check/foreign_key_check 정상. .env·DB·raw 삭제/초기화 없음. 이전 패시브 기본 ETF는 추적만 중지하고 이력 보존.
 - schema v4 신규 queue·origin migration, install.sh stock16 계정 init, update.sh 전체 service/timer 설치·daemon-reload·worker enable/restart 반영. ETF/기관 timer 파일은 수정하지 않았다. macOS에서는 worker unit INI/필수 directive/ExecStart 계약을 검사했고 실제 Linux systemd-analyze verify는 GitHub Actions에 추가했다. Oracle 서버 배포 자체는 이 로컬 작업에서 실행하지 않았다.
+
+## 주간 시가총액 / MSCI (2026-11-01 KST)
+
+- 전체 pytest 217개 통과. ETF/ETN 제외, 전체시장 67→180 추적, 우선주 분리, 직전 주 미확보, 시장 이전/이름 변경, 부분·단위 오류 거절, 공개 자료 무키 경로, zero-volume 보존, KOSDAQ GLOBAL 포함, 늦은 목요일의 금요일 오표시 방지, 원본/정규화 중복 방지, host-scoped 인증과 migration FK 참조를 검증했다.
+- Python compileall, JS 구문, deploy shell 구문, pip check 통과. Linux worker/weekly service/timer의 systemd-analyze verify를 CI에 포함했다. Oracle 서버 배포 및 실제 timer 실행은 이 로컬 작업에서 수행하지 않았다.
+- 공개 FinanceData/marcap revision `6b36e3ca01e7b4dc73c84f279e093843889d26dd`의 2020–2026 연도 파일을 Git blob hash로 확인했다. KOSPI/KOSDAQ 각각 356주(2020-01-03–2026-10-23), 전종목 순위 총 919,470행을 실제 로컬 DB에 수집했다. 원본 최신일이 2026-10-29여서 2026-10-30 주는 미확보다. Secondary로 구별하며 NASDAQ은 0/357주·자료 연결 필요다. 현재 종목이나 현재 발행주식 수로 과거 순위를 채우지 않았다.
+- 실제 2020-01-03 KOSPI 67위 두산밥캣은 2026-10-23 기준 94위, KOSDAQ 67위 엔지켐생명과학은 797위였다. 모두 356주 이력을 조회했다. 이는 최신 확보일의 관측이며 현재 주 순위 확정값이 아니다.
+- MSCI 공식 Standard PDF 27개 분기(2020-02–2026-08) 수집, 한국 요약 건수/두 열/날짜 검증 및 최신 PDF의 시각 검토를 완료했다. 2026-08 발표일 08-12, 장 마감 반영일 08-31, 편입 1/편출 4건. 이후 미발표 분기는 생성하지 않았다.
+- 실제 재수집은 주간 2주 및 MSCI 최신 2분기를 재검증해 신규 0건/오류 0건이었다.
+- 실제 browser에서 Top 100 100행, 진입/이탈, 67위 추적, NASDAQ 미확보, MSCI 27분기를 확인했다. 390px 모바일과 1440px 화면에서 페이지 가로 넘침이 없었다. 임시 TEST 전용 UI 서버/DB는 종료·삭제했고 실제 DB에 TEST 순위는 넣지 않았다.
+- v4 사전 backup과 전체 기존 행을 비교했다. portfolio snapshot 61, holding value 21,091, set 61, member 21,094, securities/identifiers 10,813씩, source document/observation 117씩, 자산배분 25, 공시 12, queue 3, run 22개가 보존됐다. integrity_check=ok, foreign_key_check 빈 결과. 데이터/비밀 설정/원본은 Git에 넣지 않는다.
+- 측정 당시 DB 약 58.55MiB, raw 28.05MiB, 연도별 압축 cache 134.23MiB, 데이터 전체 약 233.73MiB. Mac 전체 파일시스템은 약 98.5% 사용으로 90% 경고 구간이다. 이 수치는 Oracle 서버의 사용률을 의미하지 않는다.

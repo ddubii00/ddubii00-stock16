@@ -49,3 +49,11 @@ Temasek은 별도 기관이며 datasets/discovery_rules/공식 feed 계약을 �
 액티브 ETF 기본 목록은 TIME 4개·KoAct 3개·ARK 4개·JPMorgan 2개다. 공식 분류 근거/확인일/운용사/상장국은 config/watchlists.json에 기록하고 etf_profiles로 정규화한다. 이전 패시브 기본 목록은 추적 중지 상태로 보존한다.
 
 공식 확인: [TIME 코스피액티브](https://www.timeetf.co.kr/m11_view.php?idx=11), [KoAct 코리아밸류업액티브](https://www.samsungactive.co.kr/etf/product/view.do?id=2ETFP3), [ARKK](https://www.ark-funds.com/funds/arkk), [JGRO](https://am.jpmorgan.com/us/en/asset-management/adv/products/jpmorgan-active-growth-etf-etf-shares-46654q609), [JAVA](https://am.jpmorgan.com/us/en/asset-management/adv/products/jpmorgan-active-value-etf-etf-shares-46641q167). ARK 전체 CSV 서버의 robots 제한은 우회하지 않는다. latest-only 미국 소스에 과거 날짜를 붙여 backfill하지 않는다.
+
+## 주간 시장 순위 / MSCI Korea Standard
+
+공개 자료 우선 경로는 [FinanceData/marcap](https://github.com/FinanceData/marcap)의 공개 연도별 Parquet다. 이 저장소의 크롤러 코드를 실행하지 않고 공개 파일만 고정된 Git revision으로 가져온다. KRX 직접 API와 달리 Secondary로 표시한다. 실제 시가총액 단위를 당시 Close×Stocks로 검증하며 원본 Marcap 값을 저장한다. 거래량 0도 보존한다. KOSDAQ GLOBAL은 KOSDAQ으로 포함하고 KONEX는 제외한다. 전체 시장에 ETF/ETN이 별도인 원본 범위를 사용한다. 최신 원본이 금요일에 도달하지 않았으면 해당 최신 주를 보수적으로 미확보로 남긴다.
+
+STOCK16_KRX_API_KEY가 있으면 KRX 공식 유가증권/코스닥 일별매매정보 두 승인 서비스를 사용한다. 헤더는 해당 호스트로만 보낸다. NASDAQ은 당시 전종목·시장·share class·영구 ID를 포함한 검증 파일 import 경로를 제공하며, 무인증 공개 전체 역사 공급원은 아직 연결되지 않았다. API key는 웹 입력으로 받지 않는다.
+
+[MSCI 공개 정기 변경표 아카이브](https://app2.msci.com/eqb/gimi/stdindex/index_review.html)의 실제 Standard PDF 링크를 발견한다. pypdf의 layout 추출로 두 열과 국가별 건수, 발표/반영 날짜를 검증한다. 2020년 이후 누락 분기와 최신 두 분기의 정정본을 재확인한다. Small Cap과 구분하며 편입/편출을 매수/매도 또는 전체 구성종목으로 해석하지 않는다. 원본 PDF는 gzip/checksum 저장하고 아카이브 HTML 전체는 보존하지 않는다.
